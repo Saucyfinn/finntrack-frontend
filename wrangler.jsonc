@@ -1,0 +1,37 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "finntrack-api",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-04-01",
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "RACE_STATE",
+				"class_name": "RaceState"
+			}
+		]
+	},
+	"kv_namespaces": [
+		{
+			"binding": "HISTORY",
+			"id": "191134472c4e49ea8605d58ada9e21b6",
+			"remote": true
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "RACES",
+			"bucket_name": "finntrack-races"
+		}
+	],
+	"assets": {
+		"directory": "./public",
+		"binding": "ASSETS"
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["RaceState"]
+		}
+	]
+}
