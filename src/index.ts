@@ -6,7 +6,6 @@ type Env = {
   RACE_STATE: DurableObjectNamespace;
   HISTORY: KVNamespace;
   RACES: R2Bucket;
-  ASSETS: Fetcher;
 };
 
 const CORS_HEADERS: Record<string, string> = {
@@ -24,23 +23,6 @@ function withCors(resp: Response): Response {
     statusText: resp.statusText,
     headers: h,
   });
-}
-
-function isAssetPath(pathname: string): boolean {
-  if (pathname === "/" || pathname === "/index.html" || pathname === "/finntrack") return false;
-  if (pathname === "/finntrack.html") return true;
-
-  return (
-    pathname.endsWith(".html") ||
-    pathname.endsWith(".js") ||
-    pathname.endsWith(".css") ||
-    pathname.endsWith(".svg") ||
-    pathname.endsWith(".png") ||
-    pathname.endsWith(".jpg") ||
-    pathname.endsWith(".jpeg") ||
-    pathname.endsWith(".ico") ||
-    pathname.startsWith("/assets/")
-  );
 }
 
 function getRaceIdFromUrl(url: URL): string | null {
@@ -84,25 +66,17 @@ export default {
     // CORS preflight
     if (request.method === "OPTIONS") return withCors(new Response(null, { status: 204 }));
 
-    // Serve the app HTML for "/" and "/finntrack" WITHOUT relative URLs
-    // (Fixes: "Unable to parse URL: /finntrack")
+    // Redirect root and /finntrack to /finntrack.html
     if (request.method === "GET" || request.method === "HEAD") {
       if (path === "/" || path === "/index.html" || path === "/finntrack") {
-        const assetUrl = new URL(request.url);
-        assetUrl.pathname = "/finntrack.html";
-        return env.ASSETS.fetch(
-          new Request(assetUrl.toString(), {
-            method: "GET",
-            headers: request.headers,
-          })
-        );
+        const redirectUrl = new URL(request.url);
+        redirectUrl.pathname = "/finntrack.html";
+        return Response.redirect(redirectUrl.toString(), 302);
       }
     }
 
-    // Static assets from /public via assets binding
-    if (isAssetPath(path)) {
-      return env.ASSETS.fetch(request);
-    }
+    // Static assets from /public are served automatically by the assets binding
+    // No need to handle them here - they're served before the worker runs
 
     // Pretty race list used by the dropdown
     if (request.method === "GET" && path === "/race/list") {
