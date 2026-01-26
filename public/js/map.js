@@ -25,15 +25,37 @@ const FinnTrackMap = (function() {
     let showVectors = true;
     let showTrails = true;
 
+    // Tile layers
+    let currentBaseLayer = null;
+    let layerControl = null;
+
     // Initialize map (default: Royal Queensland Yacht Squadron, Manly, Brisbane)
     function initMap(elementId, center = [-27.458, 153.185], zoom = 14) {
         map = L.map(elementId, { zoomControl: true, preferCanvas: true }).setView(center, zoom);
 
-        // Light theme tiles (OSM)
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        // Base layers
+        const streetLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             opacity: 1,
-            attribution: "© OpenStreetMap"
-        }).addTo(map);
+            attribution: "© OpenStreetMap",
+            maxZoom: 19
+        });
+
+        const satelliteLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+            opacity: 1,
+            attribution: "© Esri",
+            maxZoom: 19
+        });
+
+        // Add default layer
+        streetLayer.addTo(map);
+        currentBaseLayer = streetLayer;
+
+        // Add layer control
+        const baseLayers = {
+            "Street": streetLayer,
+            "Satellite": satelliteLayer
+        };
+        layerControl = L.control.layers(baseLayers, null, { position: "topright" }).addTo(map);
 
         return map;
     }
