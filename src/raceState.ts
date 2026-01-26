@@ -30,7 +30,7 @@ export class RaceState implements DurableObject {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    if (request.headers.get("Upgrade") === "websocket" && path === "/live") {
+    if (request.headers.get("Upgrade") === "websocket" && (path === "/live" || path === "/ws/live")) {
       const pair = new WebSocketPair();
       const client = pair[0];
       const server = pair[1];

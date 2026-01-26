@@ -50,7 +50,7 @@ const FinnTrackAPI = (function() {
         if (ws) { ws.close(); ws = null; }
 
         const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws = new WebSocket(`${protocol}//${location.host}/live?raceId=${encodeURIComponent(raceId)}`);
+        ws = new WebSocket(`${protocol}//${location.host}/ws/live?raceId=${encodeURIComponent(raceId)}`);
 
         ws.onmessage = (evt) => {
             const msg = JSON.parse(evt.data);

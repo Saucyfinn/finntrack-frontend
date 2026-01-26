@@ -90,10 +90,11 @@ export default {
     }
 
     // WebSocket live feed for a race (DO handles upgrade)
-    if (path === "/live") {
+    if (path === "/ws/live") {
       const raceId = getRaceIdFromUrl(url);
       if (!raceId) return withCors(new Response("Missing raceId", { status: 400 }));
-      return withCors(await stubForRace(env, raceId).fetch(request));
+      // Don't wrap WebSocket responses in CORS - pass through directly
+      return stubForRace(env, raceId).fetch(request);
     }
 
     // Read-only endpoints served by DO

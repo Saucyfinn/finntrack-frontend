@@ -57,7 +57,55 @@ const FinnTrackMap = (function() {
         };
         layerControl = L.control.layers(baseLayers, null, { position: "topright" }).addTo(map);
 
+        // Add fullscreen control
+        const FullscreenControl = L.Control.extend({
+            options: { position: "topleft" },
+            onAdd: function() {
+                const container = L.DomUtil.create("div", "leaflet-bar leaflet-control");
+                const btn = L.DomUtil.create("a", "leaflet-fullscreen-btn", container);
+                btn.href = "#";
+                btn.title = "Toggle fullscreen";
+                btn.innerHTML = "⛶";
+                btn.style.cssText = "font-size:18px;line-height:26px;text-align:center;text-decoration:none;font-weight:bold;";
+
+                L.DomEvent.on(btn, "click", function(e) {
+                    L.DomEvent.preventDefault(e);
+                    toggleFullscreen(elementId);
+                });
+
+                return container;
+            }
+        });
+        map.addControl(new FullscreenControl());
+
         return map;
+    }
+
+    // Toggle fullscreen for map container
+    function toggleFullscreen(elementId) {
+        const elem = document.getElementById(elementId);
+        if (!elem) return;
+
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            // Enter fullscreen
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) {
+                elem.webkitRequestFullscreen();
+            }
+        } else {
+            // Exit fullscreen
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        }
+
+        // Invalidate map size after fullscreen change
+        setTimeout(() => {
+            if (map) map.invalidateSize();
+        }, 100);
     }
 
     function getMap() { return map; }
