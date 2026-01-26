@@ -173,3 +173,4 @@ Expected: `Access-Control-Allow-Origin: *` header present.
 | `/export/gpx?raceId=X` | GET | Export as GPX |
 | `/export/kml?raceId=X` | GET | Export as KML |
 # FinnTrack
+# finntrack-frontend
