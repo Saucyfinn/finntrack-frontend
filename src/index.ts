@@ -35,23 +35,33 @@ function stubForRace(env: Env, raceId: string) {
   return env.RACE_STATE.get(id);
 }
 
-// Query actual races from D1 database
-async function listRacesFromDB(env: Env) {
-  const res = await env.DB.prepare(
-    `SELECT raceId, MIN(t) as startTime, MAX(t) as endTime, COUNT(*) as pointCount
-     FROM track_points
-     GROUP BY raceId
-     ORDER BY MAX(t) DESC`
-  ).all<any>();
+// Predefined race series for 2026
+function listPredefinedRaces() {
+  const mk = (series: string, prefix: string, count: number) =>
+    Array.from({ length: count }, (_, i) => {
+      const n = i + 1;
+      return {
+        raceId: `${prefix}-2026-R${String(n).padStart(2, "0")}`,
+        title: `${series} - Race ${n}`,
+        series,
+        raceNo: n,
+      };
+    });
 
-  const races = (res.results || []).map((r: any) => ({
-    raceId: r.raceId,
-    startTime: r.startTime,
-    endTime: r.endTime,
-    pointCount: r.pointCount,
-  }));
+  const ausNats = mk("Australian Nationals 2026", "AUSNATS", 6);
+  const goldCup = mk("Gold Cup 2026", "GOLDCUP", 10);
+  const masters = mk("Finn World Masters 2026", "MASTERS", 8);
+  const training = mk("Training/Undefined", "TRAINING", 10);
 
-  return { races };
+  return {
+    races: [...ausNats, ...goldCup, ...masters, ...training],
+    series: [
+      { id: "AUSNATS", name: "Australian Nationals 2026", raceCount: 6 },
+      { id: "GOLDCUP", name: "Gold Cup 2026", raceCount: 10 },
+      { id: "MASTERS", name: "Finn World Masters 2026", raceCount: 8 },
+      { id: "TRAINING", name: "Training/Undefined", raceCount: 10 },
+    ]
+  };
 }
 
 export default {
@@ -74,10 +84,9 @@ export default {
     // Static assets from /public are served automatically by the assets binding
     // No need to handle them here - they're served before the worker runs
 
-    // Race list from D1 database
+    // Race list - predefined series
     if (request.method === "GET" && path === "/race/list") {
-      const data = await listRacesFromDB(env);
-      return withCors(Response.json(data));
+      return withCors(Response.json(listPredefinedRaces()));
     }
 
     // WebSocket live feed for a race (DO handles upgrade)

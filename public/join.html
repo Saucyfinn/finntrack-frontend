@@ -110,10 +110,19 @@
   <div class="container">
     <h1>Join Race</h1>
 
-    <label for="raceSelect">Race</label>
-    <select id="raceSelect">
+    <label>Select Series</label>
+    <select id="seriesSelect">
+      <option value="">-- Select a series --</option>
+    </select>
+
+    <label>Select Races <span style="font-weight:normal;color:#666">(hold Ctrl/Cmd to select multiple)</span></label>
+    <select id="raceSelect" multiple size="6" style="height: auto; min-height: 120px;">
       <option value="">Loading races...</option>
     </select>
+    <div style="margin-bottom: 16px;">
+      <button type="button" id="selectAllBtn" class="btn" style="background:#007aff;color:#fff;width:48%;margin-right:4%">Select All</button>
+      <button type="button" id="clearSelectionBtn" class="btn" style="background:#8e8e93;color:#fff;width:48%">Clear</button>
+    </div>
 
     <label for="entrySelect">Select Your Entry</label>
     <select id="entrySelect">
@@ -160,7 +169,10 @@
       const API_BASE = "";
 
       // Elements
+      const seriesSelect = document.getElementById("seriesSelect");
       const raceSelect = document.getElementById("raceSelect");
+      const selectAllBtn = document.getElementById("selectAllBtn");
+      const clearSelectionBtn = document.getElementById("clearSelectionBtn");
       const entrySelect = document.getElementById("entrySelect");
       const boatIdInput = document.getElementById("boatId");
       const boatNameInput = document.getElementById("boatName");
@@ -172,6 +184,10 @@
       const updateCount = document.getElementById("updateCount");
       const lastSent = document.getElementById("lastSent");
       const coordinates = document.getElementById("coordinates");
+
+      // Race data cache
+      let allRaces = [];
+      let allSeries = [];
 
       // State
       let watchId = null;
@@ -227,32 +243,72 @@
           const res = await fetch(API_BASE + "/race/list");
           if (!res.ok) throw new Error("Failed to load races");
           const data = await res.json();
-          const races = data.races || [];
+          allRaces = data.races || [];
+          allSeries = data.series || [];
 
-          raceSelect.innerHTML = "";
-
-          if (races.length === 0) {
-            raceSelect.innerHTML = '<option value="">No races available</option>';
-            return;
-          }
-
-          // Sort by series then race number
-          races.sort((a, b) => {
-            const sa = (a.series || "").localeCompare(b.series || "");
-            if (sa !== 0) return sa;
-            return (a.raceNo || 0) - (b.raceNo || 0);
-          });
-
-          for (const r of races) {
+          // Populate series dropdown
+          seriesSelect.innerHTML = '<option value="">-- Select a series --</option>';
+          for (const s of allSeries) {
             const opt = document.createElement("option");
-            opt.value = r.raceId;
-            opt.textContent = r.title || r.raceId;
-            raceSelect.appendChild(opt);
+            opt.value = s.id;
+            opt.textContent = `${s.name} (${s.raceCount} races)`;
+            seriesSelect.appendChild(opt);
           }
+
+          // Initially show all races
+          populateRaceSelect("");
         } catch (err) {
           showError("Failed to load race list: " + err.message);
           raceSelect.innerHTML = '<option value="">Error loading races</option>';
         }
+      }
+
+      // Populate race select based on series filter
+      function populateRaceSelect(seriesId) {
+        raceSelect.innerHTML = "";
+
+        const filtered = seriesId
+          ? allRaces.filter(r => r.raceId.startsWith(seriesId))
+          : allRaces;
+
+        if (filtered.length === 0) {
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.textContent = "No races available";
+          raceSelect.appendChild(opt);
+          return;
+        }
+
+        for (const r of filtered) {
+          const opt = document.createElement("option");
+          opt.value = r.raceId;
+          opt.textContent = r.title || r.raceId;
+          raceSelect.appendChild(opt);
+        }
+      }
+
+      // Series select change handler
+      seriesSelect.addEventListener("change", () => {
+        populateRaceSelect(seriesSelect.value);
+      });
+
+      // Select all races in current view
+      selectAllBtn.addEventListener("click", () => {
+        for (const opt of raceSelect.options) {
+          opt.selected = true;
+        }
+      });
+
+      // Clear selection
+      clearSelectionBtn.addEventListener("click", () => {
+        for (const opt of raceSelect.options) {
+          opt.selected = false;
+        }
+      });
+
+      // Get selected race IDs
+      function getSelectedRaceIds() {
+        return Array.from(raceSelect.selectedOptions).map(o => o.value).filter(v => v);
       }
 
       function showError(msg) {
@@ -274,44 +330,50 @@
         trackingStatus.className = "status-value status-" + type;
       }
 
-      // Send position update to server
+      // Send position update to server for all selected races
       async function sendUpdate() {
         if (!lastPosition) return;
 
         const now = Date.now();
         if (now - lastSendTime < SEND_INTERVAL_MS) return;
 
-        const raceId = raceSelect.value;
+        const selectedRaces = getSelectedRaceIds();
         const boatId = boatIdInput.value.trim();
 
-        if (!raceId || !boatId) return;
+        if (selectedRaces.length === 0 || !boatId) return;
 
-        const payload = {
-          raceId: raceId,
-          boatId: boatId,
-          name: boatNameInput.value.trim() || undefined,
-          lat: lastPosition.coords.latitude,
-          lon: lastPosition.coords.longitude,
-          sog: lastPosition.coords.speed != null ? lastPosition.coords.speed * 1.94384 : undefined, // m/s to knots
-          cog: lastPosition.coords.heading != null ? lastPosition.coords.heading : undefined,
-          ts: Math.floor(now / 1000)
-        };
+        // Send to each selected race
+        const promises = selectedRaces.map(raceId => {
+          const payload = {
+            raceId: raceId,
+            boatId: boatId,
+            name: boatNameInput.value.trim() || undefined,
+            lat: lastPosition.coords.latitude,
+            lon: lastPosition.coords.longitude,
+            sog: lastPosition.coords.speed != null ? lastPosition.coords.speed * 1.94384 : undefined, // m/s to knots
+            cog: lastPosition.coords.heading != null ? lastPosition.coords.heading : undefined,
+            ts: Math.floor(now / 1000)
+          };
 
-        try {
-          const res = await fetch(API_BASE + "/update", {
+          return fetch(API_BASE + "/update", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
           });
+        });
 
-          if (res.ok) {
+        try {
+          const results = await Promise.all(promises);
+          const allOk = results.every(r => r.ok);
+
+          if (allOk) {
             sendCount++;
             lastSendTime = now;
-            updateCount.textContent = sendCount;
+            updateCount.textContent = `${sendCount} (${selectedRaces.length} races)`;
             lastSent.textContent = new Date().toLocaleTimeString();
             hideError();
           } else {
-            showError("Server error: " + res.status);
+            showError("Some updates failed");
           }
         } catch (err) {
           showError("Network error: " + err.message);
@@ -359,11 +421,11 @@
       function startTracking() {
         hideError();
 
-        const raceId = raceSelect.value;
+        const selectedRaces = getSelectedRaceIds();
         const boatId = boatIdInput.value.trim();
 
-        if (!raceId) {
-          showError("Please select a race");
+        if (selectedRaces.length === 0) {
+          showError("Please select at least one race");
           return;
         }
 
@@ -397,11 +459,14 @@
         // UI updates
         startBtn.style.display = "none";
         stopBtn.style.display = "block";
+        seriesSelect.disabled = true;
         raceSelect.disabled = true;
+        selectAllBtn.disabled = true;
+        clearSelectionBtn.disabled = true;
         boatIdInput.disabled = true;
         boatNameInput.disabled = true;
 
-        setTrackingStatus("Active", "ok");
+        setTrackingStatus(`Active (${selectedRaces.length} races)`, "ok");
       }
 
       // Stop tracking
@@ -419,7 +484,10 @@
         // UI updates
         startBtn.style.display = "block";
         stopBtn.style.display = "none";
+        seriesSelect.disabled = false;
         raceSelect.disabled = false;
+        selectAllBtn.disabled = false;
+        clearSelectionBtn.disabled = false;
         boatIdInput.disabled = false;
         boatNameInput.disabled = false;
 

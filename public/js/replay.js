@@ -62,12 +62,24 @@ document.addEventListener("DOMContentLoaded", async () => {
             raceSelect.appendChild(opt);
             return;
         }
+        // Group by series
+        let currentSeries = "";
+        let optgroup = null;
         races.forEach(r => {
+            if (r.series && r.series !== currentSeries) {
+                currentSeries = r.series;
+                optgroup = document.createElement("optgroup");
+                optgroup.label = r.series;
+                raceSelect.appendChild(optgroup);
+            }
             const opt = document.createElement("option");
             opt.value = r.raceId;
-            // Format: "raceId (X points)"
-            opt.textContent = `${r.raceId} (${r.pointCount} points)`;
-            raceSelect.appendChild(opt);
+            opt.textContent = r.title || r.raceId;
+            if (optgroup) {
+                optgroup.appendChild(opt);
+            } else {
+                raceSelect.appendChild(opt);
+            }
         });
         if (races.length > 0) {
             FinnTrackAPI.setRaceId(races[0].raceId);
