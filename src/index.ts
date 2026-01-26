@@ -6,6 +6,7 @@ type Env = {
   RACE_STATE: DurableObjectNamespace;
   HISTORY: KVNamespace;
   RACES: R2Bucket;
+  DB: D1Database;
 };
 
 const CORS_HEADERS: Record<string, string> = {
@@ -34,27 +35,22 @@ function stubForRace(env: Env, raceId: string) {
   return env.RACE_STATE.get(id);
 }
 
-// Pretty, manual races for dropdown.
-// (This does NOT create data; it just offers IDs + labels the UI can load.)
-function listRacesPretty() {
-  const mk = (series: string, year: number, count: number, prefix: string) =>
-    Array.from({ length: count }, (_, i) => {
-      const n = i + 1;
-      return {
-        raceId: `${prefix}-${year}-R${String(n).padStart(2, "0")}`,
-        title: `${series} ${year} — Race ${n}`,
-        series,
-        year,
-        raceNo: n,
-      };
-    });
+// Query actual races from D1 database
+async function listRacesFromDB(env: Env) {
+  const res = await env.DB.prepare(
+    `SELECT raceId, MIN(t) as startTime, MAX(t) as endTime, COUNT(*) as pointCount
+     FROM track_points
+     GROUP BY raceId
+     ORDER BY MAX(t) DESC`
+  ).all<any>();
 
-  const ausNats = mk("Australian Finn Nationals", 2026, 6, "AUSNATS");
-  const goldCup = mk("Finn Gold Cup", 2026, 10, "GOLDCUP");
-  const masters = mk("Finn World Masters", 2026, 8, "MASTERS");
-  const undefinedRaces = mk("Undefined Race", 2026, 10, "UNDEF");
+  const races = (res.results || []).map((r: any) => ({
+    raceId: r.raceId,
+    startTime: r.startTime,
+    endTime: r.endTime,
+    pointCount: r.pointCount,
+  }));
 
-  const races = [...ausNats, ...goldCup, ...masters, ...undefinedRaces];
   return { races };
 }
 
@@ -78,9 +74,10 @@ export default {
     // Static assets from /public are served automatically by the assets binding
     // No need to handle them here - they're served before the worker runs
 
-    // Pretty race list used by the dropdown
+    // Race list from D1 database
     if (request.method === "GET" && path === "/race/list") {
-      return withCors(Response.json(listRacesPretty()));
+      const data = await listRacesFromDB(env);
+      return withCors(Response.json(data));
     }
 
     // WebSocket live feed for a race (DO handles upgrade)

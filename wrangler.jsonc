@@ -3,6 +3,11 @@
 	"name": "finntrack-api",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-04-01",
+	"workers_dev": true,
+	"routes": [
+		{ "pattern": "finntracker.org", "custom_domain": true },
+		{ "pattern": "www.finntracker.org", "custom_domain": true }
+	],
 	"durable_objects": {
 		"bindings": [
 			{
@@ -11,6 +16,13 @@
 			}
 		]
 	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "finntracker-db",
+			"database_id": "308ad841-219b-4e02-89f0-c326974723e6"
+		}
+	],
 	"kv_namespaces": [
 		{
 			"binding": "HISTORY",

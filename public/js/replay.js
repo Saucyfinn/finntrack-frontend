@@ -55,14 +55,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     async function populateRaceList() {
         const races = await FinnTrackAPI.loadRaceList();
         raceSelect.innerHTML = "";
+        if (races.length === 0) {
+            const opt = document.createElement("option");
+            opt.value = "";
+            opt.textContent = "No races available";
+            raceSelect.appendChild(opt);
+            return;
+        }
         races.forEach(r => {
             const opt = document.createElement("option");
-            opt.value = r.id;
-            opt.textContent = r.label;
+            opt.value = r.raceId;
+            // Format: "raceId (X points)"
+            opt.textContent = `${r.raceId} (${r.pointCount} points)`;
             raceSelect.appendChild(opt);
         });
         if (races.length > 0) {
-            FinnTrackAPI.setRaceId(races[0].id);
+            FinnTrackAPI.setRaceId(races[0].raceId);
         }
     }
 
