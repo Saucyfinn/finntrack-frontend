@@ -1,232 +1,163 @@
-/* ---------- LIGHT THEME ---------- */
+/* /css/style.css  — FULL DROP-IN REPLACEMENT
+   Fixes: blank/white Leaflet map caused by canvas background, and ensures map container sizes correctly.
+*/
 
-:root {
-    --bg: #f5f5f5;
-    --sidebar-bg: #ffffff;
-    --text: #222;
-    --primary: #0077cc;
-    --border: #ddd;
-    --accent: #0099ff;
+:root{
+  --bg:#f5f5f5;
+  --sidebar-bg:#ffffff;
+  --text:#222;
+  --muted:#666;
+  --brand:#0b66c3;
+  --border:#e5e5e5;
 }
 
-body, html {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+*{ box-sizing:border-box; }
+
+html, body{
+  height:100%;
+  margin:0;
+  padding:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
-/* ---------- HEADER ---------- */
-
-header {
-    background: white;
-    border-bottom: 1px solid var(--border);
-    padding: 10px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+/* Header */
+header{
+  height:64px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 16px;
+  background:#fff;
+  border-bottom:1px solid var(--border);
 }
 
-#logo {
-    height: 40px;
+.brand{
+  font-weight:800;
+  font-size:28px;
+  letter-spacing:0.2px;
+  color:var(--brand);
 }
 
-header nav a {
-    margin-left: 20px;
-    text-decoration: none;
-    color: var(--text);
-    font-weight: 600;
+nav a{
+  color:var(--text);
+  text-decoration:none;
+  margin-left:18px;
+  font-weight:600;
 }
 
-header nav a:hover {
-    color: var(--primary);
+nav a.active{
+  color:var(--brand);
 }
 
-/* ---------- LANDING PAGE ---------- */
-
-main.center {
-    text-align: center;
-    margin-top: 60px;
+/* App layout */
+#app{
+  display:flex;
+  height:calc(100vh - 64px);
+  min-height:0;
 }
 
-.home-buttons {
-    display: flex;
-    justify-content: center;
-    margin-top: 40px;
-    gap: 20px;
+/* Sidebar */
+#sidebar{
+  width:340px;
+  background:var(--sidebar-bg);
+  border-right:1px solid var(--border);
+  padding:14px 14px 18px;
+  overflow:auto;
 }
 
-.btn {
-    display: inline-block;
-    padding: 15px 30px;
-    font-size: 18px;
-    background: var(--primary);
-    color: white;
-    text-decoration: none;
-    border-radius: 6px;
-    box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+.section-title{
+  font-size:22px;
+  font-weight:800;
+  margin:6px 0 10px;
 }
 
-.btn:hover {
-    background: var(--accent);
+#wsStatus{
+  color:var(--muted);
+  font-size:14px;
+  margin-bottom:8px;
 }
 
-/* ---------- SIDEBAR (LIVE + REPLAY + ANALYTICS) ---------- */
-
-#sidebar {
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 260px;
-    background: var(--sidebar-bg);
-    border-right: 1px solid var(--border);
-    padding: 15px;
-    overflow-y: auto;
+hr{
+  border:none;
+  border-top:1px solid var(--border);
+  margin:12px 0;
 }
 
-#sidebar h2, #sidebar h3 {
-    margin-top: 10px;
-    color: var(--text);
+select, button{
+  font-size:14px;
 }
 
-#boatList li {
-    padding: 8px 5px;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-    color: var(--text);
+button{
+  cursor:pointer;
+  border:1px solid var(--border);
+  background:#fff;
+  border-radius:6px;
 }
 
-#boatList li:hover {
-    background: #eee;
+button:hover{
+  border-color:#cfcfcf;
 }
 
-/* ---------- MAP AREA ---------- */
-
-#map {
-    position: absolute;
-    top: 0;
-    left: 260px;
-    right: 0;
-    bottom: 0;
-    background: #e0e0e0;
+/* Boats list */
+#boatList{
+  font-size:14px;
+  color:var(--text);
 }
 
-/* Ensure Leaflet tile layer stays visible */
-.leaflet-tile-pane {
-    z-index: 200 !important;
+#boatList ul{
+  list-style:none;
+  padding:0;
+  margin:0;
 }
 
-.leaflet-overlay-pane {
-    z-index: 400 !important;
+#boatList li{
+  padding:8px 6px;
+  border-bottom:1px solid var(--border);
 }
 
-/* Custom panes for FinnTrack layers */
-.leaflet-coursePane-pane {
-    z-index: 450 !important;
+#boatList li.selected{
+  background:#f2f7ff;
+  border-left:3px solid var(--brand);
+  padding-left:3px;
 }
 
-.leaflet-trailPane-pane {
-    z-index: 500 !important;
+/* Map */
+#mapWrap{
+  flex:1;
+  min-width:0;     /* IMPORTANT: prevents flex overflow issues */
+  min-height:0;
+  position:relative;
+  background:#fff; /* ok - tiles render on top */
 }
 
-.leaflet-boatPane-pane {
-    z-index: 600 !important;
+#map{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
 }
 
-/* Boat label styling */
-.boatLabel {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    white-space: nowrap;
-    pointer-events: none;
+/* ✅ CRITICAL FIX:
+   If you have ANY global canvas background (e.g. canvas { background:#fff; })
+   it will paint over Leaflet tiles because Leaflet uses <canvas> overlays.
+*/
+.leaflet-container canvas{
+  background:transparent !important;
 }
 
-.boatLabel div {
-    background: transparent;
+/* Safety: if some rule set Leaflet pane backgrounds, force transparent */
+.leaflet-pane,
+.leaflet-layer,
+.leaflet-overlay-pane,
+.leaflet-map-pane,
+.leaflet-tile-pane{
+  background:transparent !important;
 }
 
-/* ---------- CONTROLS ---------- */
-
-button {
-    background: white;
-    border: 1px solid var(--border);
-    padding: 6px 12px;
-    margin: 3px;
-    cursor: pointer;
-    border-radius: 5px;
-    color: var(--text);
-}
-
-button:hover {
-    background: var(--accent);
-    color: white;
-}
-
-#timeline {
-    width: 100%;
-    accent-color: var(--accent);
-}
-
-footer {
-    position: fixed;
-    bottom: 10px;
-    width: 100%;
-    text-align: center;
-    color: #777;
-    font-size: 14px;
-}
-
-/* ---------- ANALYTICS PAGE ---------- */
-
-#analysis-panel {
-    position: absolute;
-    top: 60px;  /* header height */
-    left: 260px;
-    right: 0;
-    bottom: 0;
-    padding: 20px;
-    overflow-y: auto;
-    background: var(--bg);
-}
-
-#stats {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    margin-bottom: 30px;
-}
-
-#stats div {
-    background: white;
-    padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-}
-
-canvas {
-    background: white;
-    padding: 10px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-}
-
-header nav a.active {
-    color: var(--primary);
-}
-
-#boatList {
-    list-style: none;
-    padding: 0;
-    margin: 10px 0;
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-#boatList li.selected {
-    background: var(--primary);
-    color: white;
+/* Small-screen */
+@media (max-width: 900px){
+  #sidebar{ width:300px; }
+  .brand{ font-size:24px; }
 }
