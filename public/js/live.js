@@ -13,7 +13,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     let reconnectTimer = null;
     let selectedBoat = null;
     let followingBoat = null;
-    let fleetData = null;
 
     // DOM elements
     const raceSelect = document.getElementById("raceSelect");
@@ -38,48 +37,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     const exportKML = document.getElementById("exportKML");
     const exportJSON = document.getElementById("exportJSON");
 
-    // Load fleet data for boat dropdown
-    async function loadFleetData() {
-        try {
-            const res = await fetch("/data/fleet.json");
-            if (!res.ok) return;
-            fleetData = await res.json();
-            populateBoatSelect();
-        } catch (err) {
-            console.log("Fleet data not available");
-        }
-    }
+    // Update boat dropdown from live data only
+    function updateBoatSelectFromLive(boatIds) {
+        if (!boatSelect) return;
 
-    // Populate boat dropdown from fleet data
-    function populateBoatSelect() {
-        if (!fleetData || !boatSelect) return;
-
+        // Reset and rebuild from live boats only
         boatSelect.innerHTML = '<option value="">-- All boats --</option>';
 
-        const entries = fleetData.entries || [];
-        entries.forEach(entry => {
+        boatIds.sort().forEach(boatId => {
             const opt = document.createElement("option");
-            opt.value = entry.sailNumber;
-            opt.textContent = `${entry.sailNumber} - ${entry.skipper}`;
+            opt.value = boatId;
+            opt.textContent = boatId;
             boatSelect.appendChild(opt);
         });
     }
 
-    // Update boat dropdown when boats appear on map
-    function updateBoatSelectFromLive(boatIds) {
+    // Add a single boat to dropdown if not already present
+    function addBoatToSelect(boatId) {
         if (!boatSelect) return;
-
-        // Add any boats that aren't in fleet data
-        const existingOptions = new Set(Array.from(boatSelect.options).map(o => o.value));
-
-        boatIds.forEach(boatId => {
-            if (!existingOptions.has(boatId)) {
-                const opt = document.createElement("option");
-                opt.value = boatId;
-                opt.textContent = boatId;
-                boatSelect.appendChild(opt);
-            }
-        });
+        const exists = Array.from(boatSelect.options).some(o => o.value === boatId);
+        if (!exists) {
+            const opt = document.createElement("option");
+            opt.value = boatId;
+            opt.textContent = boatId;
+            boatSelect.appendChild(opt);
+        }
     }
 
     // Follow selected boat (auto-center on updates)
@@ -218,7 +200,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     FinnTrackMap.highlightBoat(msg.boat);
                 };
                 boatList.appendChild(li);
-                updateBoatSelectFromLive([msg.boat]);
+                addBoatToSelect(msg.boat);
             }
         }
     }
@@ -319,7 +301,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // Initial load
-    await loadFleetData();
     await populateRaceList();
     await loadRace();
 });

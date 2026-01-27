@@ -184,6 +184,25 @@ export default {
       return withCors(await stubForRace(env, raceId).fetch(fwd));
     }
 
+    // Admin: clear boat data for a race
+    // POST /admin/clear?raceId=TRAINING-2026-R01&key=finntrack123
+    if (request.method === "POST" && path === "/admin/clear") {
+      const key = url.searchParams.get("key");
+      if (key !== "finntrack123") {
+        return withCors(new Response("Forbidden", { status: 403 }));
+      }
+
+      const raceId = getRaceIdFromUrl(url);
+      if (!raceId) return withCors(new Response("Missing raceId", { status: 400 }));
+
+      const resp = await stubForRace(env, raceId).fetch("https://do/clear", {
+        method: "POST",
+      });
+
+      const text = await resp.text();
+      return withCors(new Response(text, { status: resp.status }));
+    }
+
     // Helpful ping
     if (request.method === "GET" && path === "/health") {
       return withCors(new Response("ok", { status: 200 }));

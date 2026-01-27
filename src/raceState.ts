@@ -39,6 +39,7 @@ export class RaceState implements DurableObject {
     }
 
     if (request.method === "POST" && path === "/update") return this.handleUpdate(request);
+    if (request.method === "POST" && path === "/clear") return this.handleClear();
     if (request.method === "GET" && path === "/boats") return this.json(await this.getBoatsSnapshot());
     if (request.method === "GET" && path === "/replay-multi") return this.json(await this.replayMulti());
     if (request.method === "GET" && path === "/autocourse") return this.json(await this.autoDetectCourse());
@@ -144,6 +145,25 @@ export class RaceState implements DurableObject {
 
     this.broadcast({ type: "update", boat: boatId, data: frame });
     return new Response("OK");
+  }
+
+  private async handleClear(): Promise<Response> {
+    // Get all boat IDs before clearing
+    const boatIds = await this.getBoatIds();
+
+    // Clear in-memory state
+    this.boats.clear();
+
+    // Clear storage: boatIds list and each boat's latest frame
+    await this.state.storage.delete("boatIds");
+    for (const boatId of boatIds) {
+      await this.state.storage.delete(`boat:${boatId}:latest`);
+    }
+
+    // Broadcast empty state to all connected clients
+    this.broadcast({ type: "full", boats: {} });
+
+    return new Response(`Cleared ${boatIds.length} boats`);
   }
 
   private async replayMulti(): Promise<{ raceId: string | null; boats: Record<string, BoatFrame[]> }> {
