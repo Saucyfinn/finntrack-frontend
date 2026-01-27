@@ -7,11 +7,24 @@ type BoatFrame = {
   lng: number;
   speed: number;
   heading: number;
-  timestamp: number;
+  timestamp: number;  // ALWAYS in milliseconds
 };
 
-type FullMsg = { type: "full"; boats: Record<string, BoatFrame> };
-type UpdateMsg = { type: "update"; boat: string; data: BoatFrame };
+type BoatFrameWithActive = BoatFrame & { active: boolean };
+
+type FullMsg = { type: "full"; boats: Record<string, BoatFrameWithActive> };
+type UpdateMsg = { type: "update"; boat: string; data: BoatFrameWithActive };
+
+// Store last N ingests for debugging
+type IngestLog = {
+  boatId: string;
+  lat: number;
+  lng: number;
+  timestamp: number;
+  receivedAt: number;
+};
+
+const MAX_INGEST_LOG = 20;
 
 export class RaceState implements DurableObject {
   private state: DurableObjectState;
@@ -20,6 +33,7 @@ export class RaceState implements DurableObject {
 
   private boats: Map<string, BoatFrame> = new Map();
   private sockets: Set<WebSocket> = new Set();
+  private ingestLog: IngestLog[] = [];
 
   constructor(state: DurableObjectState, env: any) {
     this.state = state;
@@ -41,8 +55,12 @@ export class RaceState implements DurableObject {
     if (request.method === "POST" && path === "/update") return this.handleUpdate(request);
     if (request.method === "POST" && path === "/clear") return this.handleClear();
     if (request.method === "GET" && path === "/boats") {
-      const activeSeconds = parseInt(url.searchParams.get("activeSeconds") || "120", 10);
+      // Default to 300 seconds (5 min) TTL if not specified
+      const activeSeconds = parseInt(url.searchParams.get("activeSeconds") || "300", 10);
       return this.json(await this.getBoatsSnapshot(activeSeconds));
+    }
+    if (request.method === "GET" && path === "/debug/last") {
+      return this.json({ lastIngests: this.ingestLog.slice(-5) });
     }
     if (request.method === "GET" && path === "/replay-multi") return this.json(await this.replayMulti());
     if (request.method === "GET" && path === "/autocourse") return this.json(await this.autoDetectCourse());
@@ -60,7 +78,7 @@ export class RaceState implements DurableObject {
     ws.addEventListener("close", () => this.sockets.delete(ws));
     ws.addEventListener("error", () => this.sockets.delete(ws));
 
-    this.getBoatsSnapshot().then((boats) => {
+    this.getBoatsSnapshot(0).then((boats) => {
       const msg: FullMsg = { type: "full", boats };
       try { ws.send(JSON.stringify(msg)); } catch {}
     });
@@ -110,20 +128,36 @@ export class RaceState implements DurableObject {
   }
 
   /**
-   * Get boats snapshot, optionally filtered by activity time.
-   * @param activeSeconds If > 0, only return boats updated within this many seconds. 0 = all boats.
+   * Get boats snapshot with activity filtering.
+   * @param activeSeconds Filter to boats updated within this many seconds. 0 = no filter (all boats).
+   * Each boat includes an "active" field (true if within 300 seconds).
    */
-  private async getBoatsSnapshot(activeSeconds: number = 0): Promise<Record<string, BoatFrame>> {
+  private async getBoatsSnapshot(activeSeconds: number = 300): Promise<Record<string, BoatFrameWithActive>> {
     await this.hydrateBoatsFromStorageIfEmpty();
-    const out: Record<string, BoatFrame> = {};
-    const nowSec = Math.floor(Date.now() / 1000);
-    const cutoff = activeSeconds > 0 ? nowSec - activeSeconds : 0;
+    const out: Record<string, BoatFrameWithActive> = {};
+    const nowMs = Date.now();
+    const ttlMs = activeSeconds > 0 ? activeSeconds * 1000 : 0;
+    const activeFlagCutoff = nowMs - (300 * 1000); // 5 min for "active" flag
+
+    console.log(`[RaceState] getBoatsSnapshot: now=${nowMs} activeSeconds=${activeSeconds} boats=${this.boats.size}`);
 
     for (const [k, v] of this.boats.entries()) {
-      // If filtering by activity, skip boats older than cutoff
-      if (activeSeconds > 0 && v.timestamp < cutoff) continue;
-      out[k] = v;
+      const age = nowMs - v.timestamp;
+
+      // If activeSeconds > 0, filter by TTL
+      if (activeSeconds > 0 && age > ttlMs) {
+        console.log(`[RaceState] Skipping ${k}: age=${age}ms > ttl=${ttlMs}ms`);
+        continue;
+      }
+
+      out[k] = {
+        ...v,
+        active: v.timestamp >= activeFlagCutoff,
+      };
+      console.log(`[RaceState] Including ${k}: age=${age}ms active=${out[k].active}`);
     }
+
+    console.log(`[RaceState] Returning ${Object.keys(out).length} boats`);
     return out;
   }
 
@@ -133,14 +167,27 @@ export class RaceState implements DurableObject {
     const raceId = String(data.raceId || "");
     const boatId = String(data.boatId || "");
     const lat = Number(data.lat);
-    // Accept both 'lng' and 'lon' for longitude
     const lng = Number(data.lng ?? data.lon);
-    // Accept both 'speed' and 'sog' (speed over ground)
-    const speed = Number(data.speed ?? data.sog ?? 0);
-    // Accept both 'heading' and 'cog' (course over ground)
+    const speed = Number(data.speed ?? data.sog ?? data.vel ?? 0);
     const heading = Number(data.heading ?? data.cog ?? 0);
-    // Accept both 'timestamp' and 'ts'
-    const timestamp = Number(data.timestamp ?? data.ts ?? Math.floor(Date.now() / 1000));
+
+    // Handle timestamp - could be in ms or seconds
+    let timestamp: number;
+    const rawTs = data.timestamp ?? data.ts ?? data.tst;
+    if (typeof rawTs === "number") {
+      // If timestamp looks like seconds (before year 2100 in seconds), convert to ms
+      // Year 2100 in seconds = 4102444800
+      // Year 2000 in ms = 946684800000
+      if (rawTs < 4102444800) {
+        // It's in seconds, convert to ms
+        timestamp = rawTs * 1000;
+      } else {
+        // It's already in ms
+        timestamp = rawTs;
+      }
+    } else {
+      timestamp = Date.now();
+    }
 
     if (!raceId || !boatId || !Number.isFinite(lat) || !Number.isFinite(lng)) {
       return new Response("Invalid payload", { status: 400 });
@@ -154,29 +201,45 @@ export class RaceState implements DurableObject {
     this.boats.set(boatId, frame);
     await this.state.storage.put(`boat:${boatId}:latest`, frame);
 
+    // Log ingestion for debugging
+    this.ingestLog.push({
+      boatId,
+      lat,
+      lng,
+      timestamp,
+      receivedAt: Date.now(),
+    });
+    if (this.ingestLog.length > MAX_INGEST_LOG) {
+      this.ingestLog = this.ingestLog.slice(-MAX_INGEST_LOG);
+    }
+
+    // Store in KV history
     const key = this.kvKey(boatId, timestamp);
     await this.env.HISTORY.put(key, JSON.stringify(frame));
 
-    this.broadcast({ type: "update", boat: boatId, data: frame });
+    // Broadcast with active flag
+    const nowMs = Date.now();
+    const activeCutoffMs = nowMs - (120 * 1000);
+    const frameWithActive: BoatFrameWithActive = {
+      ...frame,
+      active: frame.timestamp >= activeCutoffMs,
+    };
+    this.broadcast({ type: "update", boat: boatId, data: frameWithActive });
+
+    console.log(`[RaceState] Updated boat: ${boatId} at ${lat},${lng} ts=${timestamp}`);
+
     return new Response("OK");
   }
 
   private async handleClear(): Promise<Response> {
-    // Get all boat IDs before clearing
     const boatIds = await this.getBoatIds();
-
-    // Clear in-memory state
     this.boats.clear();
-
-    // Clear storage: boatIds list and each boat's latest frame
+    this.ingestLog = [];
     await this.state.storage.delete("boatIds");
     for (const boatId of boatIds) {
       await this.state.storage.delete(`boat:${boatId}:latest`);
     }
-
-    // Broadcast empty state to all connected clients
     this.broadcast({ type: "full", boats: {} });
-
     return new Response(`Cleared ${boatIds.length} boats`);
   }
 
@@ -231,7 +294,7 @@ export class RaceState implements DurableObject {
   private detectStartLine(boatsData: Record<string, BoatFrame[]>, startTime: number) {
     const points: LatLng[] = [];
     for (const frames of Object.values(boatsData)) {
-      const target = startTime - 20;
+      const target = startTime - 20000;  // 20 seconds before in ms
       const f = frames.find(x => x.timestamp >= target);
       if (f) points.push([f.lat, f.lng]);
     }
@@ -244,7 +307,7 @@ export class RaceState implements DurableObject {
     const headings: number[] = [];
     for (const frames of Object.values(boatsData)) {
       for (const f of frames) {
-        if (f.timestamp > startTime && f.timestamp < startTime + 150) {
+        if (f.timestamp > startTime && f.timestamp < startTime + 150000) {  // 150 seconds in ms
           if ((f.speed ?? 0) > 2) headings.push(f.heading ?? 0);
         }
       }
@@ -293,7 +356,7 @@ export class RaceState implements DurableObject {
     for (const id of Object.keys(boats)) {
       gpx += `<trk><name>${id}</name><trkseg>\n`;
       for (const f of boats[id]) {
-        gpx += `<trkpt lat="${f.lat}" lon="${f.lng}"><time>${new Date(f.timestamp * 1000).toISOString()}</time></trkpt>\n`;
+        gpx += `<trkpt lat="${f.lat}" lon="${f.lng}"><time>${new Date(f.timestamp).toISOString()}</time></trkpt>\n`;
       }
       gpx += `</trkseg></trk>\n`;
     }

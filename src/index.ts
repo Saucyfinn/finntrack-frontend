@@ -7,7 +7,6 @@ type Env = {
   HISTORY: KVNamespace;
   RACES: R2Bucket;
   DB: D1Database;
-  OWNTRACKS_KEY?: string; // Optional: if set, require this as basic auth password
 };
 
 /**
@@ -15,23 +14,16 @@ type Env = {
  * See: https://owntracks.org/booklet/tech/json/
  */
 type OwnTracksPayload = {
-  _type?: string;      // "location", "lwt", "transition", etc.
+  _type?: string;
   lat?: number;
   lon?: number;
-  tst?: number;        // Unix timestamp (seconds)
-  vel?: number;        // velocity in km/h
-  cog?: number;        // course over ground (degrees)
-  tid?: string;        // Tracker ID (2-char or longer, set in OwnTracks app)
-  topic?: string;      // MQTT topic (usually not present in HTTP mode)
-  acc?: number;        // accuracy in meters
-  alt?: number;        // altitude
-  batt?: number;       // battery percentage
-  bs?: number;         // battery status
-  conn?: string;       // connection type (w/m/o)
-  created_at?: number;
-  m?: number;          // monitoring mode
-  t?: string;          // trigger type
-  vac?: number;        // vertical accuracy
+  tst?: number;        // Unix timestamp in SECONDS
+  vel?: number;        // velocity km/h
+  cog?: number;        // course over ground
+  tid?: string;
+  acc?: number;
+  alt?: number;
+  batt?: number;
 };
 
 const CORS_HEADERS: Record<string, string> = {
@@ -59,53 +51,6 @@ function jsonError(message: string, status: number): Response {
   return corsResponse(JSON.stringify({ error: message }), status);
 }
 
-/**
- * Parse HTTP Basic Auth header
- * Returns { username, password } or null
- */
-function parseBasicAuth(request: Request): { username: string; password: string } | null {
-  const auth = request.headers.get("Authorization");
-  if (!auth || !auth.toLowerCase().startsWith("basic ")) return null;
-  try {
-    const decoded = atob(auth.slice(6));
-    const idx = decoded.indexOf(":");
-    if (idx === -1) return { username: decoded, password: "" };
-    return { username: decoded.slice(0, idx), password: decoded.slice(idx + 1) };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Derive boatId from available sources (priority order):
- * 1. OwnTracks "tid" field (TrackerID set in app)
- * 2. HTTP Basic Auth username (OwnTracks UserID field)
- * 3. Query param ?boatId= (fallback for manual testing)
- */
-function deriveBoatId(
-  url: URL,
-  body: OwnTracksPayload,
-  basicAuth: { username: string; password: string } | null
-): string | null {
-  // 1. OwnTracks tid (preferred - set in app's TrackerID field)
-  if (body.tid && body.tid.trim()) {
-    return body.tid.trim();
-  }
-
-  // 2. Basic Auth username (OwnTracks UserID field)
-  if (basicAuth?.username && basicAuth.username.trim()) {
-    return basicAuth.username.trim();
-  }
-
-  // 3. Query param fallback (for curl testing)
-  const qBoatId = url.searchParams.get("boatId");
-  if (qBoatId && qBoatId.trim()) {
-    return qBoatId.trim();
-  }
-
-  return null;
-}
-
 function stubForRace(env: Env, raceId: string) {
   const id = env.RACE_STATE.idFromName(raceId);
   return env.RACE_STATE.get(id);
@@ -124,14 +69,18 @@ function listPredefinedRaces() {
       };
     });
 
+  // LIVE is the default race for all OwnTracks users
+  const live = [{ raceId: "LIVE", title: "Live Tracking (All Boats)", series: "Live", raceNo: 0 }];
+
   const ausNats = mk("Australian Nationals 2026", "AUSNATS", 6);
   const goldCup = mk("Gold Cup 2026", "GOLDCUP", 10);
   const masters = mk("Finn World Masters 2026", "MASTERS", 8);
   const training = mk("Training/Undefined", "TRAINING", 10);
 
   return {
-    races: [...ausNats, ...goldCup, ...masters, ...training],
+    races: [...live, ...ausNats, ...goldCup, ...masters, ...training],
     series: [
+      { id: "LIVE", name: "Live", raceCount: 1 },
       { id: "AUSNATS", name: "Australian Nationals 2026", raceCount: 6 },
       { id: "GOLDCUP", name: "Gold Cup 2026", raceCount: 10 },
       { id: "MASTERS", name: "Finn World Masters 2026", raceCount: 8 },
@@ -141,47 +90,36 @@ function listPredefinedRaces() {
 }
 
 /**
- * Handle OwnTracks ingestion endpoint
- * Accepts: POST /ingest/owntracks?raceId=XXX
- * Also handles GET for connectivity verification
+ * Parse HTTP Basic Auth header (OwnTracks sends UserID:Password)
  */
-async function handleOwnTracks(request: Request, url: URL, env: Env): Promise<Response> {
-  const method = request.method.toUpperCase();
-
-  // OPTIONS - CORS preflight
-  if (method === "OPTIONS") {
-    return corsResponse(null, 204);
+function parseBasicAuth(request: Request): { username: string; password: string } | null {
+  const auth = request.headers.get("Authorization");
+  if (!auth || !auth.toLowerCase().startsWith("basic ")) return null;
+  try {
+    const decoded = atob(auth.slice(6));
+    const idx = decoded.indexOf(":");
+    if (idx === -1) return { username: decoded, password: "" };
+    return { username: decoded.slice(0, idx), password: decoded.slice(idx + 1) };
+  } catch {
+    return null;
   }
+}
 
-  // GET - connectivity check (OwnTracks may ping this)
-  if (method === "GET") {
-    return jsonOk({
-      status: "ok",
-      service: "FinnTrack OwnTracks Ingestion",
-      usage: "POST location JSON to this endpoint with ?raceId=YOUR_RACE_ID",
-    });
-  }
-
-  // Only POST from here
-  if (method !== "POST") {
-    return jsonError("Method not allowed. Use POST.", 405);
-  }
-
-  // Parse basic auth (OwnTracks sends UserID:Password as basic auth)
+/**
+ * Handle OwnTracks ingestion via PATH-based routing
+ * POST /ingest/owntracks/:raceId/:boatId - boatId in path
+ * POST /ingest/owntracks/:raceId - boatId from tid, UserID, or TrackerID
+ *
+ * This is the PRIMARY endpoint for OwnTracks iOS HTTP mode.
+ */
+async function handleOwnTracksPath(
+  request: Request,
+  raceId: string,
+  pathBoatId: string | null,
+  env: Env
+): Promise<Response> {
+  // Parse basic auth (OwnTracks sends UserID:Password)
   const basicAuth = parseBasicAuth(request);
-
-  // Optional auth check: if OWNTRACKS_KEY is set, require it as password
-  if (env.OWNTRACKS_KEY && env.OWNTRACKS_KEY.length > 0) {
-    if (!basicAuth || basicAuth.password !== env.OWNTRACKS_KEY) {
-      return jsonError("Unauthorized: invalid password", 401);
-    }
-  }
-
-  // Get raceId from query string (required)
-  const raceId = url.searchParams.get("raceId");
-  if (!raceId || !raceId.trim()) {
-    return jsonError("Missing raceId query parameter. Use ?raceId=YOUR_RACE_ID", 400);
-  }
 
   // Parse JSON body
   let body: OwnTracksPayload;
@@ -191,15 +129,25 @@ async function handleOwnTracks(request: Request, url: URL, env: Env): Promise<Re
       return jsonError("Empty request body", 400);
     }
     body = JSON.parse(text);
-  } catch (e) {
+  } catch {
     return jsonError("Invalid JSON in request body", 400);
   }
 
   // Handle non-location messages gracefully
   if (body._type && body._type !== "location") {
-    // OwnTracks sends "lwt" (last will testament), "transition", etc.
-    // Acknowledge them without processing
-    return jsonOk({ result: "ignored", _type: body._type });
+    return jsonOk({ ok: true, ignored: true, _type: body._type });
+  }
+
+  // Derive boatId (priority: path > tid > UserID from basic auth)
+  let boatId = pathBoatId;
+  if (!boatId && body.tid) {
+    boatId = body.tid;
+  }
+  if (!boatId && basicAuth?.username) {
+    boatId = basicAuth.username;
+  }
+  if (!boatId) {
+    return jsonError("Cannot determine boatId. Set TrackerID in app, or use URL /ingest/owntracks/RACE/BOATID", 400);
   }
 
   // Validate coordinates
@@ -209,30 +157,23 @@ async function handleOwnTracks(request: Request, url: URL, env: Env): Promise<Re
     return jsonError("Invalid or missing lat/lon coordinates", 400);
   }
 
-  // Derive boatId
-  const boatId = deriveBoatId(url, body, basicAuth);
-  if (!boatId) {
-    return jsonError(
-      "Cannot determine boatId. Set TrackerID (tid) in OwnTracks app, or use UserID field, or add ?boatId= to URL",
-      400
-    );
-  }
+  // IMPORTANT: OwnTracks tst is Unix SECONDS - convert to MILLISECONDS for internal storage
+  const tstSeconds = typeof body.tst === "number" ? body.tst : Math.floor(Date.now() / 1000);
+  const timestampMs = tstSeconds * 1000;
 
-  // Timestamp: OwnTracks sends Unix seconds
-  const timestamp = typeof body.tst === "number" ? body.tst : Math.floor(Date.now() / 1000);
   const speed = typeof body.vel === "number" ? body.vel : 0;
   const heading = typeof body.cog === "number" ? body.cog : 0;
 
   // Forward to Durable Object
-  const stub = stubForRace(env, raceId.trim());
+  const stub = stubForRace(env, raceId);
   const update = {
-    raceId: raceId.trim(),
+    raceId,
     boatId,
     lat,
     lng: lon,
     speed,
     heading,
-    timestamp,
+    timestamp: timestampMs,
   };
 
   try {
@@ -246,15 +187,39 @@ async function handleOwnTracks(request: Request, url: URL, env: Env): Promise<Re
     return jsonError("Internal error storing location", 500);
   }
 
-  // Return success response (OwnTracks expects JSON)
+  console.log(`[OwnTracks] Ingested: raceId=${raceId} boatId=${boatId} lat=${lat} lon=${lon} tst=${tstSeconds}`);
+
   return jsonOk({
-    result: "ok",
+    ok: true,
+    raceId,
     boatId,
-    raceId: raceId.trim(),
     lat,
     lon,
-    tst: timestamp,
+    tst: tstSeconds,
+    timestampMs,
   });
+}
+
+/**
+ * Parse path-based OwnTracks URL
+ * Supports:
+ *   /ingest/owntracks/:raceId/:boatId - boatId in path
+ *   /ingest/owntracks/:raceId - boatId from payload tid or basic auth
+ */
+function parseOwnTracksPath(path: string): { raceId: string; boatId: string | null } | null {
+  // Match /ingest/owntracks/RACEID/BOATID
+  const matchFull = path.match(/^\/ingest\/owntracks\/([^/]+)\/([^/]+)/);
+  if (matchFull) {
+    return { raceId: decodeURIComponent(matchFull[1]), boatId: decodeURIComponent(matchFull[2]) };
+  }
+
+  // Match /ingest/owntracks/RACEID (boatId will come from payload or auth)
+  const matchRaceOnly = path.match(/^\/ingest\/owntracks\/([^/]+)\/?$/);
+  if (matchRaceOnly) {
+    return { raceId: decodeURIComponent(matchRaceOnly[1]), boatId: null };
+  }
+
+  return null;
 }
 
 export default {
@@ -267,11 +232,11 @@ export default {
       return corsResponse(null, 204);
     }
 
-    // Redirect root and /finntrack to /finntrack.html
+    // Redirect root to /live.html
     if (request.method === "GET" || request.method === "HEAD") {
       if (path === "/" || path === "/index.html" || path === "/finntrack") {
         const redirectUrl = new URL(request.url);
-        redirectUrl.pathname = "/finntrack.html";
+        redirectUrl.pathname = "/live.html";
         return Response.redirect(redirectUrl.toString(), 302);
       }
     }
@@ -282,9 +247,45 @@ export default {
     }
 
     // ===== OwnTracks Ingestion =====
-    // Handle with and without trailing slash
-    if (path === "/ingest/owntracks" || path === "/ingest/owntracks/") {
-      return handleOwnTracks(request, url, env);
+    // SIMPLE: POST /ingest/owntracks - boatId from UserID/TrackerID, goes to "LIVE" race
+    // Also supports: /ingest/owntracks/:raceId or ?raceId=...
+    if ((path === "/ingest/owntracks" || path === "/ingest/owntracks/" || path.startsWith("/ingest/owntracks/")) && request.method === "POST") {
+      // Default race for all live tracking
+      const DEFAULT_RACE = "LIVE";
+
+      // Try path-based with raceId
+      if (path.startsWith("/ingest/owntracks/")) {
+        const parsed = parseOwnTracksPath(path);
+        if (parsed) {
+          return handleOwnTracksPath(request, parsed.raceId, parsed.boatId, env);
+        }
+      }
+
+      // Check for query-param raceId, otherwise use default
+      const raceId = url.searchParams.get("raceId") || DEFAULT_RACE;
+      const boatId = url.searchParams.get("boatId") || null;
+      return handleOwnTracksPath(request, raceId, boatId, env);
+    }
+
+    // GET /ingest/owntracks - connectivity check
+    if (path.startsWith("/ingest/owntracks") && request.method === "GET") {
+      return jsonOk({
+        status: "ok",
+        service: "FinnTrack OwnTracks Ingestion",
+        usage: "Just POST to /ingest/owntracks - set UserID to your sail number",
+      });
+    }
+
+    // ===== Debug endpoint =====
+    // GET /debug/last?raceId=...
+    if (path === "/debug/last" && request.method === "GET") {
+      const raceId = url.searchParams.get("raceId");
+      if (!raceId) return jsonError("Missing raceId", 400);
+
+      const doUrl = new URL("https://do/debug/last");
+      const resp = await stubForRace(env, raceId).fetch(doUrl.toString());
+      const data = await resp.json();
+      return jsonOk(data as object);
     }
 
     // ===== WebSocket live feed =====
@@ -322,7 +323,6 @@ export default {
       doUrl.pathname = path;
 
       const resp = await stubForRace(env, raceId).fetch(new Request(doUrl.toString(), request));
-      // Pass through response with CORS
       const body = await resp.text();
       return corsResponse(body, resp.status, resp.headers.get("Content-Type") || "application/json");
     }
