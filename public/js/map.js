@@ -31,7 +31,18 @@ const FinnTrackMap = (function() {
 
     // Initialize map (default: Royal Queensland Yacht Squadron, Manly, Brisbane)
     function initMap(elementId, center = [-27.458, 153.185], zoom = 14) {
-        map = L.map(elementId, { zoomControl: true, preferCanvas: true }).setView(center, zoom);
+        map = L.map(elementId, { zoomControl: true }).setView(center, zoom);
+
+        // Create custom panes with explicit z-index to ensure proper layer ordering
+        // Base tiles are at z-index 200 by default
+        map.createPane('coursePane');
+        map.getPane('coursePane').style.zIndex = 450;  // Course elements below boats
+
+        map.createPane('trailPane');
+        map.getPane('trailPane').style.zIndex = 500;   // Boat trails
+
+        map.createPane('boatPane');
+        map.getPane('boatPane').style.zIndex = 600;    // Boat markers on top
 
         // Base layers
         const streetLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -163,7 +174,8 @@ const FinnTrackMap = (function() {
             startLineLayer = L.polyline([[A[0], A[1]], [B[0], B[1]]], {
                 color: "#0077cc",
                 weight: 4,
-                opacity: 0.9
+                opacity: 0.9,
+                pane: 'coursePane'
             }).addTo(map);
         }
 
@@ -173,7 +185,8 @@ const FinnTrackMap = (function() {
             finishLineLayer = L.polyline([[A[0], A[1]], [B[0], B[1]]], {
                 color: "#00a86b",
                 weight: 4,
-                opacity: 0.9
+                opacity: 0.9,
+                pane: 'coursePane'
             }).addTo(map);
         }
 
@@ -184,7 +197,8 @@ const FinnTrackMap = (function() {
                     radius: 8,
                     color: "#ff6b35",
                     fillColor: "#ff6b35",
-                    fillOpacity: 0.9
+                    fillOpacity: 0.9,
+                    pane: 'coursePane'
                 }).addTo(map);
                 markLayers.push(m);
             });
@@ -195,7 +209,8 @@ const FinnTrackMap = (function() {
             polygonLayer = L.polygon(data.coursePolygon.map(pt => [pt[0], pt[1]]), {
                 color: "#663399",
                 weight: 2,
-                fillOpacity: 0.08
+                fillOpacity: 0.08,
+                pane: 'coursePane'
             }).addTo(map);
             map.fitBounds(polygonLayer.getBounds());
         }
@@ -217,7 +232,8 @@ const FinnTrackMap = (function() {
                 radius: 6,
                 color: color,
                 fillColor: color,
-                fillOpacity: 1
+                fillOpacity: 1,
+                pane: 'boatPane'
             }).addTo(map);
 
             if (options.onClick) {
@@ -232,12 +248,13 @@ const FinnTrackMap = (function() {
             const lblHtml = `<div style="color:${color};font-size:11px;font-weight:600;text-shadow:1px 1px 2px white;">${boatId}</div>`;
             if (!boatLabels[boatId]) {
                 boatLabels[boatId] = L.marker([lat, lng], {
-                    icon: L.divIcon({ html: lblHtml, className: "boatLabel", iconSize: [50, 20] }),
-                    interactive: false
+                    icon: L.divIcon({ html: lblHtml, className: "boatLabel", iconSize: [50, 20], iconAnchor: [25, -5] }),
+                    interactive: false,
+                    pane: 'boatPane'
                 }).addTo(map);
             } else {
                 boatLabels[boatId].setLatLng([lat, lng]);
-                boatLabels[boatId].setIcon(L.divIcon({ html: lblHtml, className: "boatLabel", iconSize: [50, 20] }));
+                boatLabels[boatId].setIcon(L.divIcon({ html: lblHtml, className: "boatLabel", iconSize: [50, 20], iconAnchor: [25, -5] }));
             }
         }
 
@@ -253,7 +270,8 @@ const FinnTrackMap = (function() {
                 boatVectors[boatId] = L.polyline([[lat, lng], [lat2, lng2]], {
                     color: color,
                     weight: 3,
-                    opacity: 0.8
+                    opacity: 0.8,
+                    pane: 'boatPane'
                 }).addTo(map);
             } else {
                 boatVectors[boatId].setLatLngs([[lat, lng], [lat2, lng2]]);
@@ -266,7 +284,8 @@ const FinnTrackMap = (function() {
                 boatPolylines[boatId] = L.polyline([[lat, lng]], {
                     color: color,
                     weight: 2,
-                    opacity: 0.5
+                    opacity: 0.5,
+                    pane: 'trailPane'
                 }).addTo(map);
             } else if (options.appendTrail) {
                 boatPolylines[boatId].addLatLng([lat, lng]);
@@ -283,7 +302,8 @@ const FinnTrackMap = (function() {
         boatPolylines[boatId] = L.polyline(frames.map(f => [f.lat, f.lng]), {
             color: color,
             weight: 2,
-            opacity: 0.35
+            opacity: 0.35,
+            pane: 'trailPane'
         }).addTo(map);
     }
 

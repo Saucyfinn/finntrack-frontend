@@ -111,6 +111,42 @@ main.center {
     left: 260px;
     right: 0;
     bottom: 0;
+    background: #e0e0e0;
+}
+
+/* Ensure Leaflet tile layer stays visible */
+.leaflet-tile-pane {
+    z-index: 200 !important;
+}
+
+.leaflet-overlay-pane {
+    z-index: 400 !important;
+}
+
+/* Custom panes for FinnTrack layers */
+.leaflet-coursePane-pane {
+    z-index: 450 !important;
+}
+
+.leaflet-trailPane-pane {
+    z-index: 500 !important;
+}
+
+.leaflet-boatPane-pane {
+    z-index: 600 !important;
+}
+
+/* Boat label styling */
+.boatLabel {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.boatLabel div {
+    background: transparent;
 }
 
 /* ---------- CONTROLS ---------- */

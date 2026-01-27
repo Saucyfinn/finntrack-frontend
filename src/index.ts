@@ -35,7 +35,7 @@ function stubForRace(env: Env, raceId: string) {
   return env.RACE_STATE.get(id);
 }
 
-// Predefined race series for 2026
+// ===== RACES =====
 function listPredefinedRaces() {
   const mk = (series: string, prefix: string, count: number) =>
     Array.from({ length: count }, (_, i) => {
@@ -60,8 +60,53 @@ function listPredefinedRaces() {
       { id: "GOLDCUP", name: "Gold Cup 2026", raceCount: 10 },
       { id: "MASTERS", name: "Finn World Masters 2026", raceCount: 8 },
       { id: "TRAINING", name: "Training/Undefined", raceCount: 10 },
-    ]
+    ],
   };
+}
+
+// ===== OWNTRACKS INGEST =====
+const SHARED_SECRET = "finntrack123";
+
+type OwnTracksLocation = {
+  _type?: string;       // "location"
+  lat?: number;
+  lon?: number;
+  tst?: number;         // seconds since epoch
+  t?: string;           // trigger, e.g. "u"
+  vel?: number;         // speed (often km/h)
+  cog?: number;         // course degrees
+  acc?: number;         // accuracy meters
+  alt?: number;
+  batt?: number;        // battery %
+  tid?: string;         // 2-char tracker id (optional)
+  topic?: string;       // owntracks/user/device (optional)
+  [k: string]: any;
+};
+
+function pickBoatId(url: URL, ot: OwnTracksLocation): string {
+  // Prefer explicit boatId from query
+  const q = (url.searchParams.get("boatId") || "").trim();
+  if (q) return q;
+
+  // Next: OwnTracks tid (often 2 letters)
+  const tid = (ot.tid || "").trim();
+  if (tid) return tid;
+
+  // Next: last segment of topic (device)
+  const topic = (ot.topic || "").trim();
+  if (topic.includes("/")) return topic.split("/").pop() || "UNKNOWN";
+
+  return "UNKNOWN";
+}
+
+function validateSecret(request: Request, url: URL): boolean {
+  const key = url.searchParams.get("key") || "";
+  if (key && key === SHARED_SECRET) return true;
+
+  const auth = request.headers.get("Authorization") || "";
+  if (auth.startsWith("Bearer ") && auth.slice(7) === SHARED_SECRET) return true;
+
+  return false;
 }
 
 export default {
@@ -81,19 +126,73 @@ export default {
       }
     }
 
-    // Static assets from /public are served automatically by the assets binding
-    // No need to handle them here - they're served before the worker runs
-
     // Race list - predefined series
     if (request.method === "GET" && path === "/race/list") {
       return withCors(Response.json(listPredefinedRaces()));
+    }
+
+    // ---- OwnTracks HTTP ingest ----
+    // POST /ingest/owntracks?raceId=TRAINING-2026-R01&boatId=NZL5&key=finntrack123
+    if (request.method === "POST" && path === "/ingest/owntracks") {
+      if (!validateSecret(request, url)) {
+        return withCors(new Response("Unauthorized", { status: 401 }));
+      }
+
+      const raceId = getRaceIdFromUrl(url);
+      if (!raceId) return withCors(new Response("Missing raceId", { status: 400 }));
+
+      let ot: OwnTracksLocation;
+      try {
+        ot = await request.json<OwnTracksLocation>();
+      } catch {
+        return withCors(new Response("Bad JSON", { status: 400 }));
+      }
+
+      const lat = Number(ot.lat);
+      const lon = Number(ot.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        return withCors(new Response("Missing lat/lon", { status: 400 }));
+      }
+
+      const boatId = pickBoatId(url, ot);
+
+      // OwnTracks uses tst in seconds; FinnTrack uses ms
+      const tMs =
+        Number.isFinite(Number(ot.tst)) ? Math.round(Number(ot.tst) * 1000) : Date.now();
+
+      const update = {
+        raceId,
+        boatId,
+        name: boatId,
+        lat,
+        lon,
+        sog: Number.isFinite(Number(ot.vel)) ? Number(ot.vel) : undefined,
+        cog: Number.isFinite(Number(ot.cog)) ? Number(ot.cog) : undefined,
+        t: tMs,
+        // keep a couple extras if you want later
+        acc: Number.isFinite(Number(ot.acc)) ? Number(ot.acc) : undefined,
+        batt: Number.isFinite(Number(ot.batt)) ? Number(ot.batt) : undefined,
+      };
+
+      const doUrl = new URL(request.url);
+      doUrl.protocol = "https:";
+      doUrl.host = "do";
+      doUrl.pathname = "/update";
+
+      const fwd = new Request(doUrl.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(update),
+      });
+
+      const resp = await stubForRace(env, raceId).fetch(fwd);
+      return withCors(resp);
     }
 
     // WebSocket live feed for a race (DO handles upgrade)
     if (path === "/ws/live") {
       const raceId = getRaceIdFromUrl(url);
       if (!raceId) return withCors(new Response("Missing raceId", { status: 400 }));
-      // Don't wrap WebSocket responses in CORS - pass through directly
       return stubForRace(env, raceId).fetch(request);
     }
 
@@ -108,7 +207,6 @@ export default {
       const raceId = getRaceIdFromUrl(url);
       if (!raceId) return withCors(new Response("Missing raceId", { status: 400 }));
 
-      // Route inside DO while preserving original path/query
       const doUrl = new URL(request.url);
       doUrl.protocol = "https:";
       doUrl.host = "do";
@@ -117,7 +215,7 @@ export default {
       return withCors(await stubForRace(env, raceId).fetch(new Request(doUrl.toString(), request)));
     }
 
-    // Update endpoint: POST body forwarded into DO
+    // Existing JSON update endpoint
     if (request.method === "POST" && path === "/update") {
       const bodyText = await request.text();
       let parsed: any;
@@ -152,4 +250,3 @@ export default {
     return withCors(new Response("Not found", { status: 404 }));
   },
 };
-
