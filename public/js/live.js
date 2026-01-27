@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     let reconnectTimer = null;
     let selectedBoat = null;
     let followingBoat = null;
+    let fleetData = null;
 
     // DOM elements
     const raceSelect = document.getElementById("raceSelect");
@@ -36,6 +37,66 @@ document.addEventListener("DOMContentLoaded", async () => {
     const exportGPX = document.getElementById("exportGPX");
     const exportKML = document.getElementById("exportKML");
     const exportJSON = document.getElementById("exportJSON");
+
+    // Load fleet data for boat list display
+    async function loadFleetData() {
+        try {
+            const res = await fetch("/data/fleet.json");
+            if (!res.ok) return;
+            fleetData = await res.json();
+            renderFleetList();
+        } catch (err) {
+            console.log("Fleet data not available");
+        }
+    }
+
+    // Render fleet list in sidebar (registered boats)
+    function renderFleetList(connectedBoats = []) {
+        if (!fleetData) return;
+        boatList.innerHTML = "";
+
+        const connected = new Set(connectedBoats);
+        const entries = fleetData.entries || [];
+
+        entries.forEach(entry => {
+            const li = document.createElement("li");
+            const boatId = entry.sailNumber;
+            const isConnected = connected.has(boatId);
+            const color = isConnected ? FinnTrackMap.getBoatColor(boatId) : "#ccc";
+            const style = isConnected ? "font-weight: 600;" : "opacity: 0.5;";
+
+            li.innerHTML = `<span style="color:${color}">●</span> <span style="${style}">${boatId}</span>`;
+            li.dataset.boat = boatId;
+
+            if (isConnected) {
+                li.style.cursor = "pointer";
+                li.onclick = () => {
+                    selectedBoat = boatId;
+                    FinnTrackMap.focusBoat(boatId);
+                    FinnTrackMap.highlightBoat(boatId);
+                };
+            }
+            boatList.appendChild(li);
+        });
+
+        // Add any connected boats not in fleet
+        connectedBoats.forEach(boatId => {
+            const inFleet = entries.some(e => e.sailNumber === boatId);
+            if (!inFleet) {
+                const li = document.createElement("li");
+                const color = FinnTrackMap.getBoatColor(boatId);
+                li.innerHTML = `<span style="color:${color}">●</span> <span style="font-weight: 600;">${boatId}</span>`;
+                li.dataset.boat = boatId;
+                li.style.cursor = "pointer";
+                li.onclick = () => {
+                    selectedBoat = boatId;
+                    FinnTrackMap.focusBoat(boatId);
+                    FinnTrackMap.highlightBoat(boatId);
+                };
+                boatList.appendChild(li);
+            }
+        });
+    }
 
     // Update boat dropdown from live data only
     function updateBoatSelectFromLive(boatIds) {
@@ -126,10 +187,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                           status === "connecting" ? "Connecting..." : "Disconnected";
     }
 
-    // Render boat list in sidebar
-    function renderBoatList(boats) {
+    // Render boat list in sidebar (connected boats only, or fleet if loaded)
+    function renderBoatList(connectedBoats) {
+        if (fleetData) {
+            renderFleetList(connectedBoats);
+            return;
+        }
+
+        // Fallback: just show connected boats
         boatList.innerHTML = "";
-        boats.sort().forEach(boatId => {
+        connectedBoats.sort().forEach(boatId => {
             const li = document.createElement("li");
             const color = FinnTrackMap.getBoatColor(boatId);
             li.innerHTML = `<span style="color:${color}">●</span> ${boatId}`;
@@ -188,12 +255,26 @@ document.addEventListener("DOMContentLoaded", async () => {
                 FinnTrackMap.focusBoat(msg.boat, 16);
             }
 
-            // Add to boat list if new
-            if (!boatList.querySelector(`[data-boat="${msg.boat}"]`)) {
+            // Update boat in list (mark as connected or add if new)
+            const existingLi = boatList.querySelector(`[data-boat="${msg.boat}"]`);
+            if (existingLi) {
+                // Update existing entry to show as connected
+                const color = FinnTrackMap.getBoatColor(msg.boat);
+                existingLi.innerHTML = `<span style="color:${color}">●</span> <span style="font-weight: 600;">${msg.boat}</span>`;
+                existingLi.style.cursor = "pointer";
+                existingLi.onclick = () => {
+                    selectedBoat = msg.boat;
+                    FinnTrackMap.focusBoat(msg.boat);
+                    FinnTrackMap.highlightBoat(msg.boat);
+                };
+                addBoatToSelect(msg.boat);
+            } else {
+                // Add new boat not in fleet
                 const li = document.createElement("li");
                 li.dataset.boat = msg.boat;
                 const color = FinnTrackMap.getBoatColor(msg.boat);
-                li.innerHTML = `<span style="color:${color}">●</span> ${msg.boat}`;
+                li.innerHTML = `<span style="color:${color}">●</span> <span style="font-weight: 600;">${msg.boat}</span>`;
+                li.style.cursor = "pointer";
                 li.onclick = () => {
                     selectedBoat = msg.boat;
                     FinnTrackMap.focusBoat(msg.boat);
@@ -301,6 +382,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // Initial load
+    await loadFleetData();
     await populateRaceList();
     await loadRace();
 });
