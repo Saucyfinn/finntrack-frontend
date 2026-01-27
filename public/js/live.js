@@ -7,12 +7,12 @@
   const followSelect = $("followSelect");
   const followBtn = $("followBtn");
   const resetViewBtn = $("resetViewBtn");
-  const boatsList = $("boatsList"); // UL or DIV where boats list is rendered
-  const statusDot = $("connDot");   // optional
-  const statusText = $("connText"); // optional
+  const boatList = $("boatList"); // DIV where boats list is rendered (corrected ID)
+  const wsStatus = $("wsStatus"); // Status indicator in sidebar
 
   // ---- config ----
-  const POLL_MS = 1000;
+  const POLL_MS = 1500;           // Poll every 1.5 seconds
+  const ACTIVE_SECONDS = 120;     // Only show boats active within 120 seconds
 
   let currentRaceId = null;
   let pollTimer = null;
@@ -20,8 +20,11 @@
   let followingBoatId = null;
 
   function setStatus(ok, text) {
-    if (statusDot) statusDot.style.background = ok ? "green" : "red";
-    if (statusText) statusText.textContent = text || (ok ? "Connected" : "Disconnected");
+    if (wsStatus) {
+      wsStatus.innerHTML = ok
+        ? '<span style="color:green">●</span> ' + (text || "Connected")
+        : '<span style="color:red">●</span> ' + (text || "Disconnected");
+    }
   }
 
   function normalizeBoats(payload) {
@@ -45,31 +48,36 @@
   }
 
   function renderBoatsList(boats) {
-    if (!boatsList) return;
+    if (!boatList) return;
 
     if (boats.length === 0) {
-      boatsList.innerHTML = "(no boats connected yet)";
+      boatList.innerHTML = "(no boats connected yet)";
       return;
     }
 
-    // Simple list
-    boatsList.innerHTML = "";
+    // Simple list with last-seen info
+    boatList.innerHTML = "";
     const ul = document.createElement("ul");
     ul.style.listStyle = "none";
     ul.style.padding = "0";
     ul.style.margin = "0";
+
+    const nowSec = Math.floor(Date.now() / 1000);
 
     boats
       .slice()
       .sort((a, b) => String(a.boatId).localeCompare(String(b.boatId)))
       .forEach((b) => {
         const li = document.createElement("li");
-        li.textContent = boatLabel(b);
+        const ageSec = nowSec - (b.timestamp || 0);
+        const ageStr = ageSec < 60 ? `${ageSec}s ago` : `${Math.floor(ageSec / 60)}m ago`;
+        li.innerHTML = `<strong>${boatLabel(b)}</strong> <span style="color:#888; font-size:12px;">${ageStr}</span>`;
         li.style.padding = "6px 0";
+        li.style.borderBottom = "1px solid #eee";
         ul.appendChild(li);
       });
 
-    boatsList.appendChild(ul);
+    boatList.appendChild(ul);
   }
 
   function renderFollowDropdown(boats) {
@@ -103,7 +111,7 @@
   async function fetchBoatsOnce() {
     if (!currentRaceId) return [];
 
-    const url = `/boats?raceId=${encodeURIComponent(currentRaceId)}`;
+    const url = `/boats?raceId=${encodeURIComponent(currentRaceId)}&activeSeconds=${ACTIVE_SECONDS}`;
     const resp = await fetch(url, { cache: "no-store" });
     if (!resp.ok) throw new Error(`boats fetch failed: ${resp.status}`);
     const json = await resp.json();
@@ -206,6 +214,59 @@
   if (followBtn) followBtn.addEventListener("click", onFollow);
   if (resetViewBtn) resetViewBtn.addEventListener("click", onResetView);
 
-  // Optional: auto-load first race value if you want
-  // if (raceSelect && raceSelect.value) onLoadRace();
+  // ---- Initialize: fetch race list and populate dropdown ----
+  async function initRaceDropdown() {
+    if (!raceSelect) return;
+
+    try {
+      const resp = await fetch("/race/list");
+      if (!resp.ok) throw new Error("Failed to load race list");
+      const data = await resp.json();
+      const races = data.races || [];
+
+      raceSelect.innerHTML = "";
+
+      // Add placeholder
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "-- Select a race --";
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      raceSelect.appendChild(placeholder);
+
+      // Group by series
+      const grouped = {};
+      races.forEach((r) => {
+        if (!grouped[r.series]) grouped[r.series] = [];
+        grouped[r.series].push(r);
+      });
+
+      for (const [series, seriesRaces] of Object.entries(grouped)) {
+        const optgroup = document.createElement("optgroup");
+        optgroup.label = series;
+        seriesRaces.forEach((r) => {
+          const opt = document.createElement("option");
+          opt.value = r.raceId;
+          opt.textContent = r.title;
+          optgroup.appendChild(opt);
+        });
+        raceSelect.appendChild(optgroup);
+      }
+    } catch (e) {
+      console.error("Failed to load races:", e);
+      raceSelect.innerHTML = '<option value="">Error loading races</option>';
+    }
+  }
+
+  // Initialize on page load
+  setStatus(false, "Select a race");
+  initRaceDropdown();
+
+  // Ensure map is sized correctly after DOM is ready
+  window.addEventListener("load", () => {
+    if (window.FinnMap) {
+      window.FinnMap.forceResize();
+      setTimeout(() => window.FinnMap.forceResize(), 200);
+    }
+  });
 })();

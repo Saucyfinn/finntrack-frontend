@@ -40,7 +40,10 @@ export class RaceState implements DurableObject {
 
     if (request.method === "POST" && path === "/update") return this.handleUpdate(request);
     if (request.method === "POST" && path === "/clear") return this.handleClear();
-    if (request.method === "GET" && path === "/boats") return this.json(await this.getBoatsSnapshot());
+    if (request.method === "GET" && path === "/boats") {
+      const activeSeconds = parseInt(url.searchParams.get("activeSeconds") || "120", 10);
+      return this.json(await this.getBoatsSnapshot(activeSeconds));
+    }
     if (request.method === "GET" && path === "/replay-multi") return this.json(await this.replayMulti());
     if (request.method === "GET" && path === "/autocourse") return this.json(await this.autoDetectCourse());
     if (request.method === "GET" && path === "/export/gpx") return this.exportGPX();
@@ -106,10 +109,21 @@ export class RaceState implements DurableObject {
     }
   }
 
-  private async getBoatsSnapshot(): Promise<Record<string, BoatFrame>> {
+  /**
+   * Get boats snapshot, optionally filtered by activity time.
+   * @param activeSeconds If > 0, only return boats updated within this many seconds. 0 = all boats.
+   */
+  private async getBoatsSnapshot(activeSeconds: number = 0): Promise<Record<string, BoatFrame>> {
     await this.hydrateBoatsFromStorageIfEmpty();
     const out: Record<string, BoatFrame> = {};
-    for (const [k, v] of this.boats.entries()) out[k] = v;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const cutoff = activeSeconds > 0 ? nowSec - activeSeconds : 0;
+
+    for (const [k, v] of this.boats.entries()) {
+      // If filtering by activity, skip boats older than cutoff
+      if (activeSeconds > 0 && v.timestamp < cutoff) continue;
+      out[k] = v;
+    }
     return out;
   }
 
