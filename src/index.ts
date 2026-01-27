@@ -64,51 +64,6 @@ function listPredefinedRaces() {
   };
 }
 
-// ===== OWNTRACKS INGEST =====
-const SHARED_SECRET = "finntrack123";
-
-type OwnTracksLocation = {
-  _type?: string;       // "location"
-  lat?: number;
-  lon?: number;
-  tst?: number;         // seconds since epoch
-  t?: string;           // trigger, e.g. "u"
-  vel?: number;         // speed (often km/h)
-  cog?: number;         // course degrees
-  acc?: number;         // accuracy meters
-  alt?: number;
-  batt?: number;        // battery %
-  tid?: string;         // 2-char tracker id (optional)
-  topic?: string;       // owntracks/user/device (optional)
-  [k: string]: any;
-};
-
-function pickBoatId(url: URL, ot: OwnTracksLocation): string {
-  // Prefer explicit boatId from query
-  const q = (url.searchParams.get("boatId") || "").trim();
-  if (q) return q;
-
-  // Next: OwnTracks tid (often 2 letters)
-  const tid = (ot.tid || "").trim();
-  if (tid) return tid;
-
-  // Next: last segment of topic (device)
-  const topic = (ot.topic || "").trim();
-  if (topic.includes("/")) return topic.split("/").pop() || "UNKNOWN";
-
-  return "UNKNOWN";
-}
-
-function validateSecret(request: Request, url: URL): boolean {
-  const key = url.searchParams.get("key") || "";
-  if (key && key === SHARED_SECRET) return true;
-
-  const auth = request.headers.get("Authorization") || "";
-  if (auth.startsWith("Bearer ") && auth.slice(7) === SHARED_SECRET) return true;
-
-  return false;
-}
-
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -131,62 +86,49 @@ export default {
       return withCors(Response.json(listPredefinedRaces()));
     }
 
-    // ---- OwnTracks HTTP ingest ----
-    // POST /ingest/owntracks?raceId=TRAINING-2026-R01&boatId=NZL5&key=finntrack123
-    if (request.method === "POST" && path === "/ingest/owntracks") {
-      if (!validateSecret(request, url)) {
-        return withCors(new Response("Unauthorized", { status: 401 }));
+    // OwnTracks ingestion
+    if (path === "/ingest/owntracks" && request.method === "POST") {
+      const raceId = url.searchParams.get("raceId");
+      const boatId = url.searchParams.get("boatId");
+      const key = url.searchParams.get("key");
+
+      // simple auth
+      if (key !== "finntrack123") {
+        return withCors(new Response("Forbidden", { status: 403 }));
+      }
+      if (!raceId || !boatId) {
+        return withCors(new Response("Missing raceId or boatId", { status: 400 }));
       }
 
-      const raceId = getRaceIdFromUrl(url);
-      if (!raceId) return withCors(new Response("Missing raceId", { status: 400 }));
+      // parse OwnTracks JSON
+      const body = await request.json();
+      const lat = body.lat;
+      const lon = body.lon;
+      const tst = body.tst * 1000; // seconds → ms
+      const vel = body.vel ?? 0;
+      const cog = body.cog ?? 0;
 
-      let ot: OwnTracksLocation;
-      try {
-        ot = await request.json<OwnTracksLocation>();
-      } catch {
-        return withCors(new Response("Bad JSON", { status: 400 }));
-      }
+      const id = env.RACE_STATE.idFromName(raceId);
+      const stub = env.RACE_STATE.get(id);
 
-      const lat = Number(ot.lat);
-      const lon = Number(ot.lon);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        return withCors(new Response("Missing lat/lon", { status: 400 }));
-      }
-
-      const boatId = pickBoatId(url, ot);
-
-      // OwnTracks uses tst in seconds; FinnTrack uses ms
-      const tMs =
-        Number.isFinite(Number(ot.tst)) ? Math.round(Number(ot.tst) * 1000) : Date.now();
-
+      // forward to DO as a normalized update
       const update = {
         raceId,
         boatId,
-        name: boatId,
         lat,
         lon,
-        sog: Number.isFinite(Number(ot.vel)) ? Number(ot.vel) : undefined,
-        cog: Number.isFinite(Number(ot.cog)) ? Number(ot.cog) : undefined,
-        t: tMs,
-        // keep a couple extras if you want later
-        acc: Number.isFinite(Number(ot.acc)) ? Number(ot.acc) : undefined,
-        batt: Number.isFinite(Number(ot.batt)) ? Number(ot.batt) : undefined,
+        sog: vel,
+        cog,
+        t: tst,
       };
 
-      const doUrl = new URL(request.url);
-      doUrl.protocol = "https:";
-      doUrl.host = "do";
-      doUrl.pathname = "/update";
-
-      const fwd = new Request(doUrl.toString(), {
+      const resp = await stub.fetch("https://do/update", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(update),
+        headers: { "Content-Type": "application/json" }
       });
 
-      const resp = await stubForRace(env, raceId).fetch(fwd);
-      return withCors(resp);
+      return withCors(new Response("ok", { status: 200 }));
     }
 
     // WebSocket live feed for a race (DO handles upgrade)
