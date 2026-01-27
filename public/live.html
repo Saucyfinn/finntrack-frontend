@@ -29,18 +29,19 @@
       <hr />
 
       <div>Race:</div>
-      <select id="raceSelect" style="width:100%; padding:6px; margin:6px 0;"></select>
-      <button id="loadRaceBtn" style="width:100%; padding:8px;">Load Race</button>
+      <select id="raceSelect" class="w100"></select>
+      <button id="loadRaceBtn" class="w100">Load Race</button>
 
       <hr />
 
       <div>Follow Boat:</div>
-      <select id="followSelect" style="width:100%; padding:6px; margin:6px 0;">
+      <select id="followSelect" class="w100">
         <option value="">-- All boats --</option>
       </select>
-      <div style="display:flex; gap:8px; margin-top:8px;">
-        <button id="followBtn" style="flex:1; padding:8px;">Follow</button>
-        <button id="resetViewBtn" style="flex:1; padding:8px;">Reset View</button>
+
+      <div class="row">
+        <button id="followBtn" class="w50">Follow</button>
+        <button id="resetViewBtn" class="w50">Reset View</button>
       </div>
 
       <hr />
@@ -58,8 +59,8 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <!-- Your scripts -->
-  <script defer src="/js/map.js"></script>
-  <script defer src="/js/api.js"></script>
-  <script defer src="/js/live.js"></script>
+  <script src="/js/map.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/live.js"></script>
 </body>
 </html>

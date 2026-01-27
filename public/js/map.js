@@ -1,81 +1,200 @@
-// public/js/map.js
-(() => {
-  if (!window.L) {
-    console.error("Leaflet (L) not found. leaflet.js failed to load.");
-    return;
-  }
+/* public/js/map.js */
 
-  const mapEl = document.getElementById("map");
-  if (!mapEl) {
-    console.error("#map element not found");
-    return;
-  }
+(function () {
+  let map;
+  let baseLayer;
+  const markers = new Map(); // boatId -> L.Marker
+  const trails = new Map();  // boatId -> L.Polyline (optional, can remove)
+  let lastBoundsRaceId = null;
 
-  // IMPORTANT: do NOT preferCanvas here. We want SVG overlays so nothing white-covers tiles.
-  const map = L.map("map", { zoomControl: true });
+  function ensureMap() {
+    if (map) return map;
 
-  const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors',
-  });
-
-  tiles.on("tileerror", (e) => console.warn("Tile error:", e));
-  tiles.addTo(map);
-
-  // Christchurch default
-  map.setView([-43.5321, 172.6362], 11);
-
-  // Force SVG renderer for overlays
-  const svgRenderer = L.svg();
-
-  const boatLayer = L.layerGroup().addTo(map);
-  const markers = new Map();
-
-  function setBoat(boatId, lat, lng, label) {
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-
-    const existing = markers.get(boatId);
-    if (existing) {
-      existing.setLatLng([lat, lng]);
-      if (label) existing.bindTooltip(label, { permanent: false });
-      return;
-    }
-
-    const m = L.circleMarker([lat, lng], {
-      renderer: svgRenderer,
-      radius: 6,
-      weight: 2,
-      fillOpacity: 0.9,
+    map = L.map("map", {
+      preferCanvas: true,
+      zoomControl: true,
+      attributionControl: true
     });
 
-    if (label) m.bindTooltip(label, { permanent: false });
+    baseLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      crossOrigin: true
+    }).addTo(map);
 
-    m.addTo(boatLayer);
-    markers.set(boatId, m);
+    // Default view (Christchurch-ish)
+    map.setView([-43.53, 172.62], 11);
+
+    // Handle window resizes
+    window.addEventListener("resize", () => hardRefreshSize(), { passive: true });
+
+    return map;
   }
 
-  function clearBoats() {
-    boatLayer.clearLayers();
-    markers.clear();
+  function hardRefreshSize() {
+    if (!map) return;
+    // invalidate size fixes 90% of blank/white issues
+    map.invalidateSize(true);
+
+    // Sometimes Leaflet canvas needs a nudge to repaint
+    // (especially after flex/layout changes)
+    const center = map.getCenter();
+    map.panTo([center.lat + 1e-8, center.lng + 1e-8], { animate: false });
+    map.panTo([center.lat, center.lng], { animate: false });
   }
 
-  function fitToBoats() {
-    const pts = [];
-    markers.forEach((m) => pts.push(m.getLatLng()));
-    if (pts.length === 0) return;
-    map.fitBounds(L.latLngBounds(pts).pad(0.25));
+  function finnDivIcon() {
+    return L.divIcon({
+      className: "",
+      html: `
+        <div class="finn-marker">
+          <img src="/assets/finn.png" alt="Finn" />
+        </div>
+      `,
+      iconSize: [36, 36],
+      iconAnchor: [18, 18]
+    });
   }
 
-  function forceResize() {
-    requestAnimationFrame(() => map.invalidateSize(true));
+  function setMarkerRotation(marker, degrees) {
+    const el = marker.getElement();
+    if (!el) return;
+    // our CSS uses --rot
+    el.style.setProperty("--rot", `${degrees}deg`);
   }
 
-  window.addEventListener("resize", forceResize);
-  window.addEventListener("load", () => {
-    forceResize();
-    setTimeout(forceResize, 150);
-    setTimeout(forceResize, 600);
-  });
+  function upsertBoat(boatId, lat, lng, headingDeg) {
+    ensureMap();
 
-  window.FinnMap = { map, setBoat, clearBoats, fitToBoats, forceResize };
+    let m = markers.get(boatId);
+    if (!m) {
+      m = L.marker([lat, lng], { icon: finnDivIcon(), interactive: false }).addTo(map);
+      markers.set(boatId, m);
+    } else {
+      m.setLatLng([lat, lng]);
+    }
+
+    setMarkerRotation(m, headingDeg || 0);
+    return m;
+  }
+
+  function setTrail(boatId, points) {
+    // points: [[lat,lng], ...]
+    ensureMap();
+    let pl = trails.get(boatId);
+    if (!points || points.length < 2) {
+      if (pl) {
+        pl.remove();
+        trails.delete(boatId);
+      }
+      return;
+    }
+    if (!pl) {
+      pl = L.polyline(points, { weight: 2, opacity: 0.6 }).addTo(map);
+      trails.set(boatId, pl);
+    } else {
+      pl.setLatLngs(points);
+    }
+  }
+
+  function clearMissing(activeBoatIds) {
+    for (const [id, m] of markers.entries()) {
+      if (!activeBoatIds.has(id)) {
+        m.remove();
+        markers.delete(id);
+      }
+    }
+    for (const [id, pl] of trails.entries()) {
+      if (!activeBoatIds.has(id)) {
+        pl.remove();
+        trails.delete(id);
+      }
+    }
+  }
+
+  function fitToBoatsOncePerRace(raceId, boats) {
+    if (!boats || boats.length === 0) return;
+    if (raceId && lastBoundsRaceId === raceId) return;
+
+    const latlngs = boats
+      .map(b => [Number(b.lat), Number(b.lng)])
+      .filter(([la, lo]) => Number.isFinite(la) && Number.isFinite(lo));
+
+    if (latlngs.length === 0) return;
+
+    lastBoundsRaceId = raceId;
+    const bounds = L.latLngBounds(latlngs);
+    map.fitBounds(bounds.pad(0.25), { animate: false });
+    hardRefreshSize();
+  }
+
+  // Public API used by live.js
+  window.FinnMap = {
+    init() {
+      ensureMap();
+      // Give Leaflet a moment after load to size correctly
+      setTimeout(() => hardRefreshSize(), 50);
+      setTimeout(() => hardRefreshSize(), 250);
+    },
+
+    hardRefreshSize,
+
+    setRace(raceId) {
+      // allow re-fit on new race
+      lastBoundsRaceId = null;
+      // Also clear map state if you want a clean slate:
+      // markers.forEach(m => m.remove()); markers.clear();
+      // trails.forEach(pl => pl.remove()); trails.clear();
+      setTimeout(() => hardRefreshSize(), 50);
+    },
+
+    updateBoats(raceId, boatsObjOrArray) {
+      ensureMap();
+
+      // Backend sometimes returns {} instead of []
+      let boats = [];
+      if (Array.isArray(boatsObjOrArray)) {
+        boats = boatsObjOrArray;
+      } else if (boatsObjOrArray && typeof boatsObjOrArray === "object") {
+        boats = Object.values(boatsObjOrArray);
+      }
+
+      // Normalize + filter
+      const active = [];
+      for (const b of boats) {
+        const lat = Number(b.lat);
+        const lng = Number(b.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+        const id = String(b.boatId || b.id || "");
+        if (!id) continue;
+
+        const heading = Number(b.heading ?? b.cog ?? 0);
+        active.push({
+          boatId: id,
+          lat,
+          lng,
+          heading,
+          // optional
+          timestamp: b.timestamp ?? b.tst ?? null,
+          speed: b.speed ?? b.vel ?? null
+        });
+      }
+
+      // Upsert markers
+      const activeIds = new Set();
+      for (const b of active) {
+        activeIds.add(b.boatId);
+        upsertBoat(b.boatId, b.lat, b.lng, b.heading);
+      }
+      clearMissing(activeIds);
+
+      // Fit once per race (optional but useful)
+      fitToBoatsOncePerRace(raceId, active);
+
+      // Ensure map doesn’t go white after updates
+      hardRefreshSize();
+
+      return active; // return normalized list for UI
+    }
+  };
 })();
