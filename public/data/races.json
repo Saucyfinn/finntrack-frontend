@@ -1,0 +1,26 @@
+{
+  "races": [
+    {
+      "raceId": "aus-nats-2026",
+      "title": "Australian Finn Nationals 2026",
+      "fleets": [
+        { "id": "fleet", "name": "Fleet" }
+      ]
+    },
+    {
+      "raceId": "gold-cup-2026",
+      "title": "Finn Gold Cup 2026",
+      "fleets": [
+        { "id": "fleet", "name": "Fleet" }
+      ]
+    },
+    {
+      "raceId": "masters-2026",
+      "title": "Finn Masters 2026",
+      "fleets": [
+        { "id": "fleet", "name": "Fleet" }
+      ]
+    }
+  ]
+}
+
