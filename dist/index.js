@@ -285,7 +285,8 @@ export default {
         // ===== Admin: clear boat data =====
         if (request.method === "POST" && path === "/admin/clear") {
             const key = url.searchParams.get("key");
-            if (key !== "finntrack123") {
+            const adminKey = env.ADMIN_KEY || "finn123";
+            if (key !== adminKey) {
                 return jsonError("Forbidden", 403);
             }
             const raceId = url.searchParams.get("raceId");

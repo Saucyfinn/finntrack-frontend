@@ -1,5 +1,10 @@
 import { kmeansTwo, clusterPoints, convexHull, type LatLng } from "./utils";
 
+type Env = {
+  HISTORY: KVNamespace;
+  RACES: R2Bucket;
+};
+
 type BoatFrame = {
   raceId: string;
   boatId: string;
@@ -28,14 +33,14 @@ const MAX_INGEST_LOG = 20;
 
 export class RaceState implements DurableObject {
   private state: DurableObjectState;
-  private env: any;
+  private env: Env;
   private raceId: string | null = null;
 
   private boats: Map<string, BoatFrame> = new Map();
   private sockets: Set<WebSocket> = new Set();
   private ingestLog: IngestLog[] = [];
 
-  constructor(state: DurableObjectState, env: any) {
+  constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
   }

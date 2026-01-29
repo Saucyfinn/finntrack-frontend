@@ -47,7 +47,7 @@
       className: "",
       html: `
         <div class="finn-marker">
-          <img src="/assets/finn.png" alt="Finn" />
+          <img src="/assets/boat.svg" alt="Finn" />
         </div>
       `,
       iconSize: [36, 36],
