@@ -515,11 +515,27 @@
         }
       });
 
-      // Load saved boat ID from localStorage
-      const savedBoatId = localStorage.getItem("finntrack_boatId");
+      // Load from URL parameters or localStorage
+      const urlParams = new URLSearchParams(window.location.search);
+      const boatParam = urlParams.get('boat');
+      const raceParam = urlParams.get('race');
+
+      const savedBoatId = boatParam || localStorage.getItem("finntrack_boatId");
       const savedBoatName = localStorage.getItem("finntrack_boatName");
       if (savedBoatId) boatIdInput.value = savedBoatId;
       if (savedBoatName) boatNameInput.value = savedBoatName;
+
+      // Auto-select race if provided in URL
+      if (raceParam) {
+        // Find and select the race option
+        const raceOptions = raceSelect.querySelectorAll('option');
+        for (let option of raceOptions) {
+          if (option.value === raceParam) {
+            option.selected = true;
+            break;
+          }
+        }
+      }
 
       // Save boat ID on change
       boatIdInput.addEventListener("change", () => {

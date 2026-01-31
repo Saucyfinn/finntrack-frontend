@@ -1,66 +1,77 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>FinnTrack - Live</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FinnTrack – Live</title>
 
-  <!-- Leaflet CSS MUST load -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="/css/style.css" />
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/css/style.css" />
 </head>
 
 <body>
-  <header>
+
+<header>
     <div class="brand">FinnTrack</div>
     <nav>
-      <a href="/">Home</a>
-      <a class="active" href="/live">Live</a>
-      <a href="/replay">Replay</a>
-      <a href="/analytics">Analytics</a>
+        <a href="/">Home</a>
+        <a class="active" href="/live">Live</a>
+        <a href="/replay">Replay</a>
+        <a href="/analytics">Analytics</a>
     </nav>
-  </header>
+</header>
 
-  <div id="app">
+<div id="app">
+
     <div id="sidebar">
-      <div class="section-title">Live Tracking</div>
-      <div id="wsStatus">● Connecting...</div>
 
-      <hr />
+        <div class="section-title">Live Tracking</div>
+        <div id="wsStatus">🟢 Connected...</div>
 
-      <div>Race:</div>
-      <select id="raceSelect" class="w100"></select>
-      <button id="loadRaceBtn" class="w100">Load Race</button>
+        <hr />
 
-      <hr />
+        <div>Race:</div>
+        <select id="raceSelect" class="w100"></select>
+        <button id="loadRaceBtn" class="w100">Load Race</button>
 
-      <div>Follow Boat:</div>
-      <select id="followSelect" class="w100">
-        <option value="">-- All boats --</option>
-      </select>
+        <hr />
 
-      <div class="row">
-        <button id="followBtn" class="w50">Follow</button>
-        <button id="resetViewBtn" class="w50">Reset View</button>
-      </div>
+        <div>Follow Boat:</div>
+        <select id="followSelect" class="w100">
+            <option value="">-- All boats --</option>
+        </select>
 
-      <hr />
+        <div class="row">
+            <button id="followBtn" class="w50">Follow</button>
+            <button id="resetViewBtn" class="w50">Reset View</button>
+        </div>
 
-      <div class="section-title">Boats</div>
-      <div id="boatList">(no boats connected yet)</div>
-    </div>
+        <hr />
+
+        <div class="section-title">Boats</div>
+        <div id="boatList">(no boats connected yet)</div>
+
+    </div> <!-- /sidebar -->
 
     <div id="mapWrap">
-      <div id="map"></div>
+        <div id="map"></div>
     </div>
-  </div>
 
-  <!-- Leaflet JS MUST load before map.js -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</div> <!-- /app -->
 
-  <!-- Your scripts -->
-  <script src="/js/map.js"></script>
-  <script src="/js/api.js"></script>
-  <script src="/js/live.js"></script>
+<!-- Leaflet JS must load before map.js -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Inject API base BEFORE api.js -->
+<script>
+    window.FINNTRACK_API_BASE = "https://api.finntracker.org";
+</script>
+
+<!-- Your app scripts -->
+<script src="/js/map.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/live.js"></script>
+
 </body>
 </html>

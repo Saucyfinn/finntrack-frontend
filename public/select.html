@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FinnTrack – Select Boat & Race</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <style>
+        .selection-container {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+
+        .selection-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group select, .form-group input {
+            padding: 0.75rem;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-group select:focus, .form-group input:focus {
+            outline: none;
+            border-color: #007acc;
+        }
+
+        .boat-info {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 1rem;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background: #005fa3;
+        }
+
+        .btn.secondary {
+            background: #6c757d;
+        }
+
+        .btn.secondary:hover {
+            background: #5a6268;
+        }
+
+        .event-info {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: #e7f3ff;
+            border-radius: 6px;
+        }
+
+        .event-info h2 {
+            margin: 0 0 0.5rem 0;
+            color: #007acc;
+        }
+
+        .event-info p {
+            margin: 0;
+            color: #666;
+        }
+
+        .location-status {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .location-success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+
+        .location-error {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <div class="brand">FinnTrack</div>
+    <nav>
+        <a href="/">Home</a>
+        <a href="/live">Live</a>
+        <a href="/replay">Replay</a>
+        <a href="/analytics">Analytics</a>
+    </nav>
+</header>
+
+<main>
+    <div class="selection-container">
+
+        <div id="eventInfo" class="event-info">
+            <h2 id="eventName">Loading...</h2>
+            <p><span id="eventClub">Loading...</span> • <span id="eventLocation">Loading...</span></p>
+        </div>
+
+        <form class="selection-form" id="selectionForm">
+
+            <div class="form-group">
+                <label for="boatSelect">Select Your Boat:</label>
+                <select id="boatSelect" required>
+                    <option value="">Loading boats...</option>
+                </select>
+                <div id="boatInfo" class="boat-info hidden">
+                    <strong id="selectedBoatName"></strong><br>
+                    Skipper: <span id="selectedSkipper"></span><br>
+                    Country: <span id="selectedCountry"></span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="raceSelect">Select Race:</label>
+                <select id="raceSelect" required>
+                    <option value="">Select a race</option>
+                    <option value="practice">Practice</option>
+                    <option value="race1">Race 1</option>
+                    <option value="race2">Race 2</option>
+                    <option value="race3">Race 3</option>
+                    <option value="race4">Race 4</option>
+                    <option value="race5">Race 5</option>
+                    <option value="race6">Race 6</option>
+                    <option value="race7">Race 7</option>
+                    <option value="race8">Race 8</option>
+                    <option value="race9">Race 9</option>
+                    <option value="race10">Race 10</option>
+                </select>
+            </div>
+
+            <div id="locationStatus" class="location-status hidden">
+                <div id="locationMessage">Checking GPS access...</div>
+                <button type="button" id="requestLocationBtn" class="btn" style="margin-top: 0.5rem;">Enable GPS Tracking</button>
+            </div>
+
+            <div class="action-buttons">
+                <button type="button" class="btn secondary" onclick="history.back()">Back</button>
+                <button type="submit" class="btn" id="continueBtn" disabled>Continue to Live Tracking</button>
+            </div>
+
+        </form>
+    </div>
+</main>
+
+<script>
+(function() {
+    const boatSelect = document.getElementById('boatSelect');
+    const raceSelect = document.getElementById('raceSelect');
+    const boatInfo = document.getElementById('boatInfo');
+    const eventName = document.getElementById('eventName');
+    const eventClub = document.getElementById('eventClub');
+    const eventLocation = document.getElementById('eventLocation');
+    const selectedBoatName = document.getElementById('selectedBoatName');
+    const selectedSkipper = document.getElementById('selectedSkipper');
+    const selectedCountry = document.getElementById('selectedCountry');
+    const continueBtn = document.getElementById('continueBtn');
+    const locationStatus = document.getElementById('locationStatus');
+    const locationMessage = document.getElementById('locationMessage');
+    const requestLocationBtn = document.getElementById('requestLocationBtn');
+    const selectionForm = document.getElementById('selectionForm');
+
+    let fleetData = null;
+    let locationPermissionGranted = false;
+
+    // Load fleet data
+    async function loadFleetData() {
+        try {
+            const response = await fetch('/data/fleet.json');
+            fleetData = await response.json();
+
+            // Update event info
+            eventName.textContent = fleetData.event || 'Finn Racing Event';
+            eventClub.textContent = fleetData.club || 'Racing Club';
+            eventLocation.textContent = fleetData.location || 'Location';
+
+            // Populate boat dropdown
+            boatSelect.innerHTML = '<option value="">Select your boat...</option>';
+
+            if (fleetData.entries) {
+                fleetData.entries.forEach(entry => {
+                    const option = document.createElement('option');
+                    option.value = entry.sailNumber;
+                    option.textContent = `${entry.sailNumber} - ${entry.skipper} (${entry.boatName})`;
+                    boatSelect.appendChild(option);
+                });
+            }
+
+        } catch (error) {
+            console.error('Failed to load fleet data:', error);
+            eventName.textContent = 'Failed to load event data';
+            boatSelect.innerHTML = '<option value="">Failed to load boats</option>';
+        }
+    }
+
+    // Handle boat selection
+    boatSelect.addEventListener('change', function() {
+        if (this.value && fleetData) {
+            const selectedBoat = fleetData.entries.find(entry => entry.sailNumber === this.value);
+            if (selectedBoat) {
+                selectedBoatName.textContent = selectedBoat.boatName || selectedBoat.sailNumber;
+                selectedSkipper.textContent = selectedBoat.skipper || 'Unknown';
+                selectedCountry.textContent = selectedBoat.country || 'Unknown';
+                boatInfo.classList.remove('hidden');
+                checkFormValidity();
+            }
+        } else {
+            boatInfo.classList.add('hidden');
+            checkFormValidity();
+        }
+    });
+
+    // Handle race selection
+    raceSelect.addEventListener('change', checkFormValidity);
+
+    // Check if form is valid
+    function checkFormValidity() {
+        const boatSelected = boatSelect.value !== '';
+        const raceSelected = raceSelect.value !== '';
+
+        if (boatSelected && raceSelected && !locationStatus.classList.contains('hidden')) {
+            // Show location request if both selections are made
+            requestLocationAccess();
+        }
+
+        continueBtn.disabled = !(boatSelected && raceSelected && locationPermissionGranted);
+    }
+
+    // Request location access
+    function requestLocationAccess() {
+        locationStatus.classList.remove('hidden');
+        locationMessage.textContent = 'GPS access is required for live tracking.';
+
+        requestLocationBtn.addEventListener('click', function() {
+            if (!navigator.geolocation) {
+                showLocationError('Geolocation is not supported by this browser');
+                return;
+            }
+
+            locationMessage.textContent = 'Requesting GPS permission...';
+            requestLocationBtn.disabled = true;
+
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    locationPermissionGranted = true;
+                    locationStatus.classList.add('location-success');
+                    locationStatus.classList.remove('location-error');
+                    locationMessage.textContent = `✓ GPS access granted! Accuracy: ${Math.round(position.coords.accuracy)}m`;
+                    requestLocationBtn.style.display = 'none';
+                    checkFormValidity();
+                },
+                function(error) {
+                    let message = 'GPS access failed. ';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            message += 'Permission denied. Please allow location access in your browser settings.';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            message += 'Position unavailable. Make sure GPS is enabled.';
+                            break;
+                        case error.TIMEOUT:
+                            message += 'GPS timeout. Please try again.';
+                            break;
+                        default:
+                            message += 'An unknown error occurred.';
+                            break;
+                    }
+                    showLocationError(message);
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 60000
+                }
+            );
+        });
+    }
+
+    function showLocationError(message) {
+        locationStatus.classList.add('location-error');
+        locationStatus.classList.remove('location-success');
+        locationMessage.textContent = message;
+        requestLocationBtn.disabled = false;
+        requestLocationBtn.textContent = 'Try Again';
+        locationPermissionGranted = false;
+        checkFormValidity();
+    }
+
+    // Handle form submission
+    selectionForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        if (continueBtn.disabled) return;
+
+        const selectedBoat = boatSelect.value;
+        const selectedRace = raceSelect.value;
+
+        // Store selections in localStorage for the live tracking page
+        localStorage.setItem('selectedBoat', selectedBoat);
+        localStorage.setItem('selectedRace', selectedRace);
+
+        // Redirect to join page with parameters
+        const params = new URLSearchParams({
+            boat: selectedBoat,
+            race: selectedRace
+        });
+
+        window.location.href = '/join.html?' + params.toString();
+    });
+
+    // Initialize
+    loadFleetData();
+})();
+</script>
+
+</body>
+</html>

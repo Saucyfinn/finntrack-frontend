@@ -1,34 +1,58 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>FinnTrack</title>
-    <link rel="stylesheet" href="/css/style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FinnTrack</title>
+  <link rel="stylesheet" href="/css/style.css" />
 </head>
-
 <body>
-
-<header>
-    <img src="/assets/logo.svg" id="logo">
-    <nav>
+  <div class="page">
+    <header class="topbar">
+      <div class="brand">
+        <img src="/assets/logo.svg" alt="FinnTrack" style="height:28px;vertical-align:middle" />
+        <span style="margin-left:10px;font-weight:700;">FinnTrack</span>
+      </div>
+      <nav class="nav">
         <a href="/live.html">Live</a>
         <a href="/replay.html">Replay</a>
         <a href="/analytics.html">Analytics</a>
-    </nav>
-</header>
+        <a href="/join.html">Join</a>
+      </nav>
+    </header>
 
-<main class="center">
-    <h1>FinnTrack</h1>
-    <p>Live tracking and replay for Finn sailing races.</p>
+    <main class="card">
+      <h1>Race Tracker</h1>
+      <p>This is the static FinnTrack site. Live tracking and replay are served by the API worker.</p>
 
-    <div class="home-buttons">
-        <a class="btn" href="/live.html">Live Tracking</a>
-        <a class="btn" href="/replay.html">Race Replay</a>
-        <a class="btn" href="/analytics.html">Analytics Dashboard</a>
-    </div>
-</main>
+      <div class="grid">
+        <a class="tile" href="/live.html">
+          <h2>Live</h2>
+          <p>Watch connected boats live on the map.</p>
+        </a>
+        <a class="tile" href="/replay.html">
+          <h2>Replay</h2>
+          <p>Load stored tracks and view trails.</p>
+        </a>
+        <a class="tile" href="/analytics.html">
+          <h2>Analytics</h2>
+          <p>Speed/VMG and manoeuvre stats.</p>
+        </a>
+        <a class="tile" href="/join.html">
+          <h2>Join</h2>
+          <p>Instructions for connecting a boat/device.</p>
+        </a>
+      </div>
 
-<footer>FinnTrack — Powered by Cloudflare & MapLibre</footer>
+      <div style="margin-top:16px;font-size:12px;opacity:0.75;">
+        API: <span id="apiBase"></span>
+      </div>
+    </main>
+  </div>
 
+  <script src="/js/config.js"></script>
+  <script>
+    document.getElementById("apiBase").textContent = window.FINNTRACK_API_BASE || "(relative)";
+  </script>
 </body>
 </html>
