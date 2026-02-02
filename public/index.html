@@ -42,7 +42,7 @@
         }
         
         .sidebar {
-            width: 320px;
+            width: 340px;
             padding: 16px;
             background: #f8f9fa;
             border-right: 1px solid #e0e0e0;
@@ -113,34 +113,57 @@
             background: white;
             border: 1px solid #e0e0e0;
             border-radius: 6px;
-            max-height: 300px;
+            max-height: 400px;
             overflow-y: auto;
         }
         
         .boat-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             padding: 10px 12px;
             border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        
+        .boat-item:hover {
+            background: #f0f7ff;
         }
         
         .boat-item:last-child {
             border-bottom: none;
         }
         
-        .boat-name {
-            font-weight: 600;
-            color: #333;
+        .boat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
-        .boat-status {
+        .boat-sail {
+            font-weight: 700;
+            color: #0066cc;
+            font-size: 14px;
+        }
+        
+        .boat-speed {
+            font-size: 12px;
+            color: #28a745;
+            font-weight: 600;
+        }
+        
+        .boat-details {
+            margin-top: 4px;
             font-size: 12px;
             color: #666;
         }
         
-        .boat-status.live {
-            color: #28a745;
+        .boat-skipper {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .boat-name {
+            font-style: italic;
+            color: #888;
         }
         
         #map {
@@ -168,6 +191,32 @@
             text-align: center;
             color: #666;
             font-size: 14px;
+        }
+        
+        .leaflet-popup-content {
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        
+        .popup-sail {
+            font-weight: 700;
+            color: #0066cc;
+            font-size: 16px;
+        }
+        
+        .popup-skipper {
+            font-weight: 500;
+            margin: 4px 0;
+        }
+        
+        .popup-boat {
+            font-style: italic;
+            color: #666;
+        }
+        
+        .popup-stats {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #555;
         }
     </style>
 </head>
@@ -229,10 +278,39 @@
     let markers = new Map();
     let currentRaceId = null;
     let pollTimer = null;
+    let fleetData = {};
     
     apiBaseEl.textContent = FinnAPI.apiBase;
-    console.log("FinnAPI.apiBase:", FinnAPI.apiBase);
-    console.log("typeof FinnAPI:", typeof FinnAPI);
+    
+    function normalizeBoatId(id) {
+        return id.replace(/\s+/g, '').toUpperCase();
+    }
+    
+    async function loadFleet() {
+        try {
+            const res = await fetch('/data/fleet.json');
+            const data = await res.json();
+            if (data.entries) {
+                data.entries.forEach(entry => {
+                    const key = normalizeBoatId(entry.sailNumber);
+                    fleetData[key] = {
+                        sailNumber: entry.sailNumber,
+                        skipper: entry.skipper,
+                        boatName: entry.boatName,
+                        country: entry.country
+                    };
+                });
+            }
+            console.log('Fleet loaded:', Object.keys(fleetData).length, 'entries');
+        } catch (e) {
+            console.warn('Could not load fleet data:', e);
+        }
+    }
+    
+    function getFleetInfo(boatId) {
+        const key = normalizeBoatId(boatId);
+        return fleetData[key] || null;
+    }
     
     function initMap() {
         map = L.map('map').setView([-27.46, 153.19], 12);
@@ -255,19 +333,36 @@
         });
     }
     
+    function createPopupContent(boat, fleet) {
+        const sail = fleet ? fleet.sailNumber : boat.boatId;
+        const skipper = fleet ? fleet.skipper : 'Unknown';
+        const boatName = fleet ? fleet.boatName : '';
+        const speed = boat.speed ? boat.speed.toFixed(1) : '0';
+        
+        return `
+            <div class="popup-sail">${sail}</div>
+            <div class="popup-skipper">${skipper}</div>
+            ${boatName ? `<div class="popup-boat">"${boatName}"</div>` : ''}
+            <div class="popup-stats">Speed: ${speed} kts</div>
+        `;
+    }
+    
     function updateMarker(boat) {
         const lat = Number(boat.lat);
         const lng = Number(boat.lng);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
         
+        const fleet = getFleetInfo(boat.boatId);
+        
         let marker = markers.get(boat.boatId);
         if (!marker) {
             marker = L.marker([lat, lng], { icon: finnIcon() }).addTo(map);
-            marker.bindPopup(`<b>${boat.boatId}</b><br>Speed: ${boat.speed || 0} kts`);
             markers.set(boat.boatId, marker);
         } else {
             marker.setLatLng([lat, lng]);
         }
+        
+        marker.bindPopup(createPopupContent(boat, fleet));
         
         const el = marker.getElement();
         if (el) {
@@ -290,12 +385,37 @@
             return;
         }
         
-        boatListEl.innerHTML = boats.map(b => `
-            <div class="boat-item">
-                <span class="boat-name">${b.boatId}</span>
-                <span class="boat-status ${b.live ? 'live' : ''}">${b.speed ? b.speed.toFixed(1) + ' kts' : 'idle'}</span>
-            </div>
-        `).join('');
+        boatListEl.innerHTML = boats.map(b => {
+            const fleet = getFleetInfo(b.boatId);
+            const sail = fleet ? fleet.sailNumber : b.boatId;
+            const skipper = fleet ? fleet.skipper : '';
+            const boatName = fleet ? fleet.boatName : '';
+            const speed = b.speed ? b.speed.toFixed(1) + ' kts' : '';
+            
+            return `
+                <div class="boat-item" data-boat-id="${b.boatId}">
+                    <div class="boat-header">
+                        <span class="boat-sail">${sail}</span>
+                        <span class="boat-speed">${speed}</span>
+                    </div>
+                    <div class="boat-details">
+                        ${skipper ? `<span class="boat-skipper">${skipper}</span>` : ''}
+                        ${boatName ? ` - <span class="boat-name">"${boatName}"</span>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        boatListEl.querySelectorAll('.boat-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const boatId = item.dataset.boatId;
+                const marker = markers.get(boatId);
+                if (marker) {
+                    map.setView(marker.getLatLng(), 15);
+                    marker.openPopup();
+                }
+            });
+        });
     }
     
     function fitToBounds(boats) {
@@ -332,7 +452,7 @@
             setStatus(true, 'Connected');
         } catch (e) {
             console.error('Failed to load races:', e);
-            setStatus(false, 'Failed to load races: ' + (e.message || 'Network error'));
+            setStatus(false, 'Failed to load races');
             raceSelect.innerHTML = '<option value="">Error loading races</option>';
         }
     }
@@ -365,7 +485,7 @@
             setStatus(true, `${boats.length} boats loaded`);
         } catch (e) {
             console.error('Failed to load boats:', e);
-            setStatus(false, 'Failed to load boats: ' + (e.message || 'Network error'));
+            setStatus(false, 'Failed to load boats');
         }
     }
     
@@ -380,6 +500,7 @@
     });
     
     initMap();
+    loadFleet();
     loadRaces();
 })();
 </script>
