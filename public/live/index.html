@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>FinnTrack – Live</title>
 
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="/css/style.css" />
 </head>
@@ -18,7 +17,7 @@
         <a href="/">Home</a>
         <a class="active" href="/live">Live</a>
         <a href="/replay">Replay</a>
-        <a href="/analytics">Analytics</a>
+        <a href="/spectator">Spectator</a>
     </nav>
 </header>
 
@@ -27,7 +26,7 @@
     <div id="sidebar">
 
         <div class="section-title">Live Tracking</div>
-        <div id="wsStatus">🟢 Connected...</div>
+        <div id="wsStatus">● Connecting...</div>
 
         <hr />
 
@@ -52,26 +51,28 @@
         <div class="section-title">Boats</div>
         <div id="boatList">(no boats connected yet)</div>
 
-    </div> <!-- /sidebar -->
+        <div style="margin-top:16px;font-size:11px;opacity:0.6;">
+            API: <span id="apiBase"></span>
+        </div>
+
+    </div>
 
     <div id="mapWrap">
         <div id="map"></div>
     </div>
 
-</div> <!-- /app -->
+</div>
 
-<!-- Leaflet JS must load before map.js -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<!-- Inject API base BEFORE api.js -->
-<script>
-    window.FINNTRACK_API_BASE = "https://api.finntracker.org";
-</script>
-
-<!-- Your app scripts -->
-<script src="/js/map.js"></script>
+<script src="/js/config.js"></script>
 <script src="/js/api.js"></script>
+<script src="/js/map.js"></script>
 <script src="/js/live.js"></script>
+<script>
+    document.getElementById("apiBase").textContent = FinnAPI.apiBase || "(not loaded)";
+    console.log("FinnAPI.apiBase:", FinnAPI.apiBase);
+    console.log("typeof FinnAPI:", typeof FinnAPI);
+</script>
 
 </body>
 </html>

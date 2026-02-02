@@ -129,6 +129,13 @@
         .hidden {
             display: none;
         }
+
+        .api-status {
+            margin-top: 1rem;
+            font-size: 0.75rem;
+            color: #888;
+            text-align: center;
+        }
     </style>
 </head>
 
@@ -140,7 +147,7 @@
         <a href="/">Home</a>
         <a href="/live">Live</a>
         <a href="/replay">Replay</a>
-        <a href="/analytics">Analytics</a>
+        <a href="/spectator">Spectator</a>
     </nav>
 </header>
 
@@ -195,10 +202,20 @@
             </div>
 
         </form>
+
+        <div class="api-status">
+            API: <span id="apiBase"></span>
+        </div>
     </div>
 </main>
 
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
 <script>
+document.getElementById("apiBase").textContent = FinnAPI.apiBase || "(not loaded)";
+console.log("FinnAPI.apiBase:", FinnAPI.apiBase);
+console.log("typeof FinnAPI:", typeof FinnAPI);
+
 (function() {
     const boatSelect = document.getElementById('boatSelect');
     const raceSelect = document.getElementById('raceSelect');
@@ -218,18 +235,15 @@
     let fleetData = null;
     let locationPermissionGranted = false;
 
-    // Load fleet data
     async function loadFleetData() {
         try {
             const response = await fetch('/data/fleet.json');
             fleetData = await response.json();
 
-            // Update event info
             eventName.textContent = fleetData.event || 'Finn Racing Event';
             eventClub.textContent = fleetData.club || 'Racing Club';
             eventLocation.textContent = fleetData.location || 'Location';
 
-            // Populate boat dropdown
             boatSelect.innerHTML = '<option value="">Select your boat...</option>';
 
             if (fleetData.entries) {
@@ -248,7 +262,6 @@
         }
     }
 
-    // Handle boat selection
     boatSelect.addEventListener('change', function() {
         if (this.value && fleetData) {
             const selectedBoat = fleetData.entries.find(entry => entry.sailNumber === this.value);
@@ -265,23 +278,19 @@
         }
     });
 
-    // Handle race selection
     raceSelect.addEventListener('change', checkFormValidity);
 
-    // Check if form is valid
     function checkFormValidity() {
         const boatSelected = boatSelect.value !== '';
         const raceSelected = raceSelect.value !== '';
 
         if (boatSelected && raceSelected && !locationStatus.classList.contains('hidden')) {
-            // Show location request if both selections are made
             requestLocationAccess();
         }
 
         continueBtn.disabled = !(boatSelected && raceSelected && locationPermissionGranted);
     }
 
-    // Request location access
     function requestLocationAccess() {
         locationStatus.classList.remove('hidden');
         locationMessage.textContent = 'GPS access is required for live tracking.';
@@ -300,7 +309,7 @@
                     locationPermissionGranted = true;
                     locationStatus.classList.add('location-success');
                     locationStatus.classList.remove('location-error');
-                    locationMessage.textContent = `✓ GPS access granted! Accuracy: ${Math.round(position.coords.accuracy)}m`;
+                    locationMessage.textContent = `GPS access granted! Accuracy: ${Math.round(position.coords.accuracy)}m`;
                     requestLocationBtn.style.display = 'none';
                     checkFormValidity();
                 },
@@ -341,7 +350,6 @@
         checkFormValidity();
     }
 
-    // Handle form submission
     selectionForm.addEventListener('submit', function(e) {
         e.preventDefault();
 
@@ -350,11 +358,9 @@
         const selectedBoat = boatSelect.value;
         const selectedRace = raceSelect.value;
 
-        // Store selections in localStorage for the live tracking page
         localStorage.setItem('selectedBoat', selectedBoat);
         localStorage.setItem('selectedRace', selectedRace);
 
-        // Redirect to join page with parameters
         const params = new URLSearchParams({
             boat: selectedBoat,
             race: selectedRace
@@ -363,7 +369,6 @@
         window.location.href = '/join.html?' + params.toString();
     });
 
-    // Initialize
     loadFleetData();
 })();
 </script>

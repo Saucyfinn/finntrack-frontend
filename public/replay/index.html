@@ -6,10 +6,7 @@
   <title>FinnTrack Replay</title>
 
   <link rel="stylesheet" href="/css/style.css" />
-
-  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
     .layout { display:grid; grid-template-columns: 360px 1fr; gap: 12px; padding: 12px; }
@@ -50,7 +47,7 @@
       </div>
 
       <div class="small" style="margin-top:10px;">
-        <a href="/live.html">← Live</a>
+        <a href="/live">← Live</a>
         <span style="float:right;">API: <span id="apiBase"></span></span>
       </div>
     </div>
@@ -58,12 +55,15 @@
     <div id="map"></div>
   </div>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/js/config.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/replay.js"></script>
 
   <script>
-    document.getElementById("apiBase").textContent = window.FINNTRACK_API_BASE || "(relative)";
+    document.getElementById("apiBase").textContent = FinnAPI.apiBase || "(not loaded)";
+    console.log("FinnAPI.apiBase:", FinnAPI.apiBase);
+    console.log("typeof FinnAPI:", typeof FinnAPI);
   </script>
 </body>
 </html>

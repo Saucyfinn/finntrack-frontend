@@ -22,6 +22,31 @@ const mimeTypes = {
   '.eot': 'application/vnd.ms-fontobject'
 };
 
+function findFile(urlPath) {
+  const publicDir = path.join(__dirname, 'public');
+  
+  let filePath = path.join(publicDir, urlPath);
+  
+  try {
+    const stats = fs.statSync(filePath);
+    if (stats.isDirectory()) {
+      filePath = path.join(filePath, 'index.html');
+      if (fs.existsSync(filePath)) {
+        return filePath;
+      }
+    } else if (stats.isFile()) {
+      return filePath;
+    }
+  } catch (e) {
+    const indexPath = path.join(filePath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      return indexPath;
+    }
+  }
+  
+  return null;
+}
+
 const server = http.createServer((req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -33,14 +58,12 @@ const server = http.createServer((req, res) => {
     urlPath = '/index.html';
   }
 
-  let filePath;
-  if (urlPath === '/spectator.html') {
-    filePath = path.join(__dirname, urlPath);
-  } else {
-    filePath = path.join(__dirname, 'public', urlPath);
-    if (!fs.existsSync(filePath)) {
-      filePath = path.join(__dirname, urlPath);
-    }
+  const filePath = findFile(urlPath);
+  
+  if (!filePath) {
+    res.writeHead(404);
+    res.end('Not Found');
+    return;
   }
 
   const ext = path.extname(filePath).toLowerCase();
@@ -48,13 +71,9 @@ const server = http.createServer((req, res) => {
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      if (err.code === 'ENOENT') {
-        res.writeHead(404);
-        res.end('Not Found');
-      } else {
-        res.writeHead(500);
-        res.end('Server Error');
-      }
+      console.error('Error reading file:', filePath, err);
+      res.writeHead(500);
+      res.end('Server Error');
       return;
     }
 

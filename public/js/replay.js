@@ -43,27 +43,32 @@
   }
 
   async function loadRaces() {
-    setStatus("Loading races…");
-    const races = await window.FinnAPI.listRaces();
+    setStatus("Loading races...");
+    try {
+      const races = await window.FinnAPI.getRaces();
 
-    raceSelect.innerHTML = "";
-    if (!races.length) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "No races";
-      raceSelect.appendChild(opt);
-      setStatus("No races returned from API.");
-      return;
+      raceSelect.innerHTML = "";
+      if (!races.length) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "No races";
+        raceSelect.appendChild(opt);
+        setStatus("No races returned from API.");
+        return;
+      }
+
+      for (const r of races) {
+        const opt = document.createElement("option");
+        opt.value = r.id;
+        opt.textContent = r.name;
+        raceSelect.appendChild(opt);
+      }
+
+      setStatus("Races loaded.");
+    } catch (e) {
+      console.error("[replay.js] loadRaces failed:", e);
+      setStatus("Failed to load races: " + (e.message || e));
     }
-
-    for (const r of races) {
-      const opt = document.createElement("option");
-      opt.value = r.id;
-      opt.textContent = r.name;
-      raceSelect.appendChild(opt);
-    }
-
-    setStatus("Races loaded.");
   }
 
   async function loadRaceKeys(raceId) {
@@ -74,7 +79,6 @@
   }
 
   function extractBoatIdsFromKeys(keys, raceId) {
-    // replay/<raceId>/<boatId>/<timestamp>.json
     const set = new Set();
     const prefix = `replay/${raceId}/`;
     for (const k of keys) {
@@ -87,12 +91,11 @@
   }
 
   async function loadBoatTrail(raceId, boatId, maxPoints) {
-    setStatus(`Loading trail for ${boatId}…`);
+    setStatus(`Loading trail for ${boatId}...`);
 
     const prefix = `replay/${raceId}/${boatId}/`;
     const keys = await window.FinnAPI.replayList(prefix);
 
-    // Sort keys by timestamp (they end in /<ts>.json)
     const sorted = keys
       .map(k => {
         const m = k.match(/\/(\d+)\.json$/);
@@ -107,7 +110,6 @@
       return;
     }
 
-    // Fetch points (sequential to keep it simple & reliable)
     const points = [];
     for (const item of slice) {
       const obj = await window.FinnAPI.replayGet(item.key);
@@ -196,7 +198,6 @@
     setStatus("Cleared.");
   });
 
-  // Boot
   initMap();
   loadRaces().catch(e => {
     console.error(e);
