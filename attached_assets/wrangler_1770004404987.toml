@@ -1,0 +1,43 @@
+name = "finntrack-api-worker"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# API ONLY route
+routes = [
+  { pattern = "api.finntracker.org/*", zone_name = "finntracker.org" }
+]
+
+[vars]
+API_SECRET = "finntrack_local_dev_9f3a8c2e4d7b1a0c6e5f"
+CORS_ORIGIN = "*"
+
+# D1
+[[d1_databases]]
+binding = "DB"
+database_name = "finntracker-db"
+database_id = "308ad841-219b-4e02-89f0-c326974723e6"
+
+# R2
+[[r2_buckets]]
+binding = "RACES"
+bucket_name = "finntrack-races"
+
+# KV
+[[kv_namespaces]]
+binding = "HISTORY"
+id = "191134472c4e49ea8605d58ada9e21b6"
+
+[[kv_namespaces]]
+binding = "HISTORY_PREVIEW"
+id = "04b2e8128c294fbbbb16771527021218"
+
+# Durable Object
+[[durable_objects.bindings]]
+name = "RACE_STATE"
+class_name = "RaceState"
+
+# DO migrations (required)
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RaceState"]
