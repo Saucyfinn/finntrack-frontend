@@ -3,8 +3,8 @@
 (function () {
   let map;
   let baseLayer;
-  const markers = new Map(); // boatId -> L.Marker
-  const trails = new Map();  // boatId -> L.Polyline (optional, can remove)
+  const markers = new Map();
+  const trails = new Map();
   let lastBoundsRaceId = null;
 
   function ensureMap() {
@@ -21,10 +21,8 @@
       crossOrigin: true
     }).addTo(map);
 
-    // Default view (Christchurch-ish)
-    map.setView([-43.53, 172.62], 11);
+    map.setView([-27.46, 153.19], 12);
 
-    // Handle window resizes
     window.addEventListener("resize", () => hardRefreshSize(), { passive: true });
 
     return map;
@@ -32,11 +30,8 @@
 
   function hardRefreshSize() {
     if (!map) return;
-    // invalidate size fixes 90% of blank/white issues
     map.invalidateSize(true);
 
-    // Sometimes Leaflet canvas needs a nudge to repaint
-    // (especially after flex/layout changes)
     const center = map.getCenter();
     map.panTo([center.lat + 1e-8, center.lng + 1e-8], { animate: false });
     map.panTo([center.lat, center.lng], { animate: false });
@@ -58,7 +53,6 @@
   function setMarkerRotation(marker, degrees) {
     const el = marker.getElement();
     if (!el) return;
-    // our CSS uses --rot
     el.style.setProperty("--rot", `${degrees}deg`);
   }
 
@@ -67,7 +61,8 @@
 
     let m = markers.get(boatId);
     if (!m) {
-      m = L.marker([lat, lng], { icon: finnDivIcon(), interactive: false }).addTo(map);
+      m = L.marker([lat, lng], { icon: finnDivIcon(), interactive: true }).addTo(map);
+      m.bindPopup(boatId);
       markers.set(boatId, m);
     } else {
       m.setLatLng([lat, lng]);
@@ -78,7 +73,6 @@
   }
 
   function setTrail(boatId, points) {
-    // points: [[lat,lng], ...]
     ensureMap();
     let pl = trails.get(boatId);
     if (!points || points.length < 2) {
@@ -127,11 +121,9 @@
     hardRefreshSize();
   }
 
-  // Public API used by live.js
   window.FinnMap = {
     init() {
       ensureMap();
-      // Give Leaflet a moment after load to size correctly
       setTimeout(() => hardRefreshSize(), 50);
       setTimeout(() => hardRefreshSize(), 250);
     },
@@ -139,30 +131,28 @@
     hardRefreshSize,
 
     setRace(raceId) {
-      // allow re-fit on new race
       lastBoundsRaceId = null;
-      // Also clear map state if you want a clean slate:
-      // markers.forEach(m => m.remove()); markers.clear();
-      // trails.forEach(pl => pl.remove()); trails.clear();
+      markers.forEach(m => m.remove());
+      markers.clear();
+      trails.forEach(pl => pl.remove());
+      trails.clear();
       setTimeout(() => hardRefreshSize(), 50);
     },
 
-    updateBoats(raceId, boatsObjOrArray) {
+    updateBoats(raceId, boatsArray) {
       ensureMap();
 
-      // Backend sometimes returns {} instead of []
       let boats = [];
-      if (Array.isArray(boatsObjOrArray)) {
-        boats = boatsObjOrArray;
-      } else if (boatsObjOrArray && typeof boatsObjOrArray === "object") {
-        boats = Object.values(boatsObjOrArray);
+      if (Array.isArray(boatsArray)) {
+        boats = boatsArray;
+      } else if (boatsArray && typeof boatsArray === "object") {
+        boats = Object.values(boatsArray);
       }
 
-      // Normalize + filter
       const active = [];
       for (const b of boats) {
         const lat = Number(b.lat);
-        const lng = Number(b.lng);
+        const lng = Number(b.lng || b.lon);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
 
         const id = String(b.boatId || b.id || "");
@@ -171,16 +161,15 @@
         const heading = Number(b.heading ?? b.cog ?? 0);
         active.push({
           boatId: id,
+          boatName: b.boatName || id,
           lat,
           lng,
           heading,
-          // optional
-          timestamp: b.timestamp ?? b.tst ?? null,
-          speed: b.speed ?? b.vel ?? null
+          timestamp: b.timestamp ?? b.t ?? null,
+          speed: b.speed ?? b.sog ?? null
         });
       }
 
-      // Upsert markers
       const activeIds = new Set();
       for (const b of active) {
         activeIds.add(b.boatId);
@@ -188,13 +177,11 @@
       }
       clearMissing(activeIds);
 
-      // Fit once per race (optional but useful)
       fitToBoatsOncePerRace(raceId, active);
 
-      // Ensure map doesn’t go white after updates
       hardRefreshSize();
 
-      return active; // return normalized list for UI
+      return active;
     }
   };
 })();

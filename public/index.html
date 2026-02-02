@@ -1,61 +1,388 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>FinnTrack</title>
-  <link rel="stylesheet" href="/css/style.css" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FinnTrack – Live Tracker</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: #fff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .brand {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0066cc;
+        }
+        
+        nav a {
+            margin-left: 20px;
+            text-decoration: none;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        nav a:hover, nav a.active {
+            color: #0066cc;
+        }
+        
+        .main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        
+        .sidebar {
+            width: 320px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-right: 1px solid #e0e0e0;
+            overflow-y: auto;
+        }
+        
+        .sidebar h2 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #555;
+        }
+        
+        select, button {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+        
+        select:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+        
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        
+        button:hover {
+            background: #0052a3;
+        }
+        
+        .status {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+        
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .boat-list {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .boat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .boat-item:last-child {
+            border-bottom: none;
+        }
+        
+        .boat-name {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .boat-status {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .boat-status.live {
+            color: #28a745;
+        }
+        
+        #map {
+            flex: 1;
+            height: 100%;
+        }
+        
+        .api-info {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 11px;
+            color: #888;
+        }
+        
+        .finn-marker img {
+            width: 32px;
+            height: 32px;
+            transform: rotate(var(--rot, 0deg));
+            transform-origin: center center;
+        }
+        
+        .no-boats {
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
 </head>
+
 <body>
-  <div class="page">
-    <header class="topbar">
-      <div class="brand">
-        <img src="/assets/logo.svg" alt="FinnTrack" style="height:28px;vertical-align:middle" />
-        <span style="margin-left:10px;font-weight:700;">FinnTrack</span>
-      </div>
-      <nav class="nav">
-        <a href="/live">Live</a>
+
+<header>
+    <div class="brand">FinnTrack</div>
+    <nav>
+        <a class="active" href="/">Live</a>
         <a href="/replay">Replay</a>
-        <a href="/analytics">Analytics</a>
-        <a href="/select">Select</a>
-      </nav>
-    </header>
+        <a href="/spectator">Spectator</a>
+        <a href="/select">Join</a>
+    </nav>
+</header>
 
-    <main class="card">
-      <h1>Race Tracker</h1>
-      <p>This is the static FinnTrack site. Live tracking and replay are served by the API worker.</p>
+<div class="main-container">
+    <div class="sidebar">
+        <h2>Live Tracking</h2>
+        
+        <div id="status" class="status disconnected">Connecting...</div>
+        
+        <div class="form-group">
+            <label for="raceSelect">Race</label>
+            <select id="raceSelect">
+                <option value="">Loading races...</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <button id="loadBtn">Load Boats</button>
+        </div>
+        
+        <h2>Boats</h2>
+        <div id="boatList" class="boat-list">
+            <div class="no-boats">Select a race and click Load</div>
+        </div>
+        
+        <div class="api-info">
+            API: <span id="apiBase"></span>
+        </div>
+    </div>
+    
+    <div id="map"></div>
+</div>
 
-      <div class="grid">
-        <a class="tile" href="/live">
-          <h2>Live</h2>
-          <p>Watch connected boats live on the map.</p>
-        </a>
-        <a class="tile" href="/replay">
-          <h2>Replay</h2>
-          <p>Load stored tracks and view trails.</p>
-        </a>
-        <a class="tile" href="/spectator">
-          <h2>Spectator</h2>
-          <p>View shared race tracks.</p>
-        </a>
-        <a class="tile" href="/select">
-          <h2>Select</h2>
-          <p>Select your boat and race to join.</p>
-        </a>
-      </div>
-
-      <div style="margin-top:16px;font-size:12px;opacity:0.75;">
-        API: <span id="apiBase"></span>
-      </div>
-    </main>
-  </div>
-
-  <script src="/js/config.js"></script>
-  <script src="/js/api.js"></script>
-  <script>
-    document.getElementById("apiBase").textContent = FinnAPI.apiBase || "(not loaded)";
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script>
+(function() {
+    const statusEl = document.getElementById('status');
+    const raceSelect = document.getElementById('raceSelect');
+    const loadBtn = document.getElementById('loadBtn');
+    const boatListEl = document.getElementById('boatList');
+    const apiBaseEl = document.getElementById('apiBase');
+    
+    let map;
+    let markers = new Map();
+    let currentRaceId = null;
+    let pollTimer = null;
+    
+    apiBaseEl.textContent = FinnAPI.apiBase;
     console.log("FinnAPI.apiBase:", FinnAPI.apiBase);
     console.log("typeof FinnAPI:", typeof FinnAPI);
-  </script>
+    
+    function initMap() {
+        map = L.map('map').setView([-27.46, 153.19], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+        }).addTo(map);
+    }
+    
+    function setStatus(connected, message) {
+        statusEl.textContent = message;
+        statusEl.className = 'status ' + (connected ? 'connected' : 'disconnected');
+    }
+    
+    function finnIcon() {
+        return L.divIcon({
+            className: '',
+            html: '<div class="finn-marker"><img src="/assets/boat.svg" alt="Boat" /></div>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        });
+    }
+    
+    function updateMarker(boat) {
+        const lat = Number(boat.lat);
+        const lng = Number(boat.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        
+        let marker = markers.get(boat.boatId);
+        if (!marker) {
+            marker = L.marker([lat, lng], { icon: finnIcon() }).addTo(map);
+            marker.bindPopup(`<b>${boat.boatId}</b><br>Speed: ${boat.speed || 0} kts`);
+            markers.set(boat.boatId, marker);
+        } else {
+            marker.setLatLng([lat, lng]);
+        }
+        
+        const el = marker.getElement();
+        if (el) {
+            el.style.setProperty('--rot', `${boat.heading || 0}deg`);
+        }
+    }
+    
+    function clearOldMarkers(activeIds) {
+        for (const [id, marker] of markers.entries()) {
+            if (!activeIds.has(id)) {
+                marker.remove();
+                markers.delete(id);
+            }
+        }
+    }
+    
+    function renderBoatList(boats) {
+        if (!boats || boats.length === 0) {
+            boatListEl.innerHTML = '<div class="no-boats">No boats connected</div>';
+            return;
+        }
+        
+        boatListEl.innerHTML = boats.map(b => `
+            <div class="boat-item">
+                <span class="boat-name">${b.boatId}</span>
+                <span class="boat-status ${b.live ? 'live' : ''}">${b.speed ? b.speed.toFixed(1) + ' kts' : 'idle'}</span>
+            </div>
+        `).join('');
+    }
+    
+    function fitToBounds(boats) {
+        if (!boats || boats.length === 0) return;
+        
+        const latlngs = boats
+            .map(b => [Number(b.lat), Number(b.lng)])
+            .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+        
+        if (latlngs.length > 0) {
+            const bounds = L.latLngBounds(latlngs);
+            map.fitBounds(bounds.pad(0.2));
+        }
+    }
+    
+    async function loadRaces() {
+        try {
+            const races = await FinnAPI.getRaces();
+            raceSelect.innerHTML = '';
+            
+            if (races.length === 0) {
+                raceSelect.innerHTML = '<option value="">No races available</option>';
+                return;
+            }
+            
+            races.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.textContent = r.name;
+                raceSelect.appendChild(opt);
+            });
+            
+            currentRaceId = races[0].id;
+            setStatus(true, 'Connected');
+        } catch (e) {
+            console.error('Failed to load races:', e);
+            setStatus(false, 'Failed to load races: ' + (e.message || 'Network error'));
+            raceSelect.innerHTML = '<option value="">Error loading races</option>';
+        }
+    }
+    
+    async function loadBoats() {
+        currentRaceId = raceSelect.value;
+        if (!currentRaceId) return;
+        
+        try {
+            const boats = await FinnAPI.getLiveBoats(currentRaceId, 86400);
+            
+            const activeIds = new Set();
+            let hasValidBoats = false;
+            
+            boats.forEach(boat => {
+                if (boat.boatId && boat.lat && boat.lng) {
+                    activeIds.add(boat.boatId);
+                    updateMarker(boat);
+                    hasValidBoats = true;
+                }
+            });
+            
+            clearOldMarkers(activeIds);
+            renderBoatList(boats);
+            
+            if (hasValidBoats && markers.size > 0) {
+                fitToBounds(boats);
+            }
+            
+            setStatus(true, `${boats.length} boats loaded`);
+        } catch (e) {
+            console.error('Failed to load boats:', e);
+            setStatus(false, 'Failed to load boats: ' + (e.message || 'Network error'));
+        }
+    }
+    
+    function startPolling() {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(loadBoats, 3000);
+    }
+    
+    loadBtn.addEventListener('click', () => {
+        loadBoats();
+        startPolling();
+    });
+    
+    initMap();
+    loadRaces();
+})();
+</script>
+
 </body>
 </html>

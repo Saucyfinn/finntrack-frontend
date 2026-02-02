@@ -40,12 +40,32 @@
   }
 
   function normalizeBoats(payload) {
-    if (Array.isArray(payload)) return payload;
-    if (payload && typeof payload === "object") {
-      if (Array.isArray(payload.boats)) return payload.boats;
-      return Object.values(payload);
+    let boats = [];
+    if (Array.isArray(payload)) {
+      boats = payload;
+    } else if (payload && typeof payload === "object") {
+      if (Array.isArray(payload.boats)) {
+        boats = payload.boats;
+      } else {
+        boats = Object.values(payload);
+      }
     }
-    return [];
+
+    return boats.map(b => {
+      const tel = b.telemetry || {};
+      return {
+        boatId: b.boatId || b.id || "",
+        boatName: b.boatName || b.boatId || "",
+        lat: tel.lat ?? b.lat,
+        lng: tel.lon ?? tel.lng ?? b.lon ?? b.lng,
+        heading: tel.heading ?? tel.cog ?? b.heading ?? b.cog ?? 0,
+        speed: tel.sog ?? tel.speed ?? b.sog ?? b.speed ?? 0,
+        timestamp: tel.t ?? tel.timestamp ?? b.timestamp ?? 0,
+        live: b.live ?? false,
+        active: b.active ?? false,
+        lastSeen: b.lastSeen ?? 0
+      };
+    }).filter(b => b.boatId);
   }
 
   window.FinnAPI = {
@@ -56,7 +76,7 @@
       return normalizeRaces(raw);
     },
 
-    async getLiveBoats(raceId, withinSeconds = 300) {
+    async getLiveBoats(raceId, withinSeconds = 86400) {
       const u = `/boats?raceId=${encodeURIComponent(raceId)}&within=${encodeURIComponent(withinSeconds)}`;
       const raw = await jget(u);
       return normalizeBoats(raw);
@@ -66,7 +86,7 @@
       return this.getRaces();
     },
 
-    async listBoats(raceId, within = 300) {
+    async listBoats(raceId, within = 86400) {
       return this.getLiveBoats(raceId, within);
     },
 
