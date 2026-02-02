@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FinnTrack – How to Track</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        main {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        h1 {
+            color: var(--brand);
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 32px;
+        }
+
+        .method {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .method h2 {
+            margin: 0 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .method h2 .badge {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .badge-easy {
+            background: #34c759;
+            color: white;
+        }
+
+        .badge-recommended {
+            background: var(--brand);
+            color: white;
+        }
+
+        .method p {
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .steps {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 16px 0;
+        }
+
+        .steps ol {
+            margin: 0;
+            padding-left: 24px;
+        }
+
+        .steps li {
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+
+        .steps li:last-child {
+            margin-bottom: 0;
+        }
+
+        .config-box {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            font-family: monospace;
+            font-size: 0.875rem;
+            overflow-x: auto;
+        }
+
+        .config-box .label {
+            color: #9cdcfe;
+        }
+
+        .config-box .value {
+            color: #ce9178;
+        }
+
+        .btn-action {
+            display: inline-block;
+            background: var(--brand);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 12px;
+        }
+
+        .btn-action:hover {
+            opacity: 0.9;
+        }
+
+        .app-links {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .app-links a {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: #333;
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.875rem;
+        }
+
+        .app-links a:hover {
+            background: #444;
+        }
+
+        .note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px 16px;
+            border-radius: 0 8px 8px 0;
+            margin: 16px 0;
+            font-size: 0.875rem;
+        }
+
+        .faq {
+            margin-top: 40px;
+        }
+
+        .faq h2 {
+            margin-bottom: 20px;
+        }
+
+        .faq-item {
+            background: white;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+
+        .faq-item h3 {
+            margin: 0 0 8px 0;
+            font-size: 1rem;
+        }
+
+        .faq-item p {
+            margin: 0;
+            color: #666;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="brand">FinnTrack</div>
+    <nav>
+        <a href="/">Live</a>
+        <a href="/replay">Replay</a>
+        <a href="/analytics">Analytics</a>
+        <a href="/join">Join Race</a>
+    </nav>
+</header>
+
+<main>
+    <h1>How to Track Your Boat</h1>
+    <p class="subtitle">Get your phone sending GPS positions so spectators can follow you live</p>
+
+    <div class="method">
+        <h2>
+            Option 1: Browser Tracking
+            <span class="badge badge-easy">Easiest</span>
+        </h2>
+        <p>Use our Join Race page directly in your phone's browser. No app to install!</p>
+
+        <div class="steps">
+            <ol>
+                <li>Open <strong>finntracker.org/join</strong> on your phone</li>
+                <li>Select your boat from the fleet list (or enter manually)</li>
+                <li>Select the race(s) you're participating in</li>
+                <li>Tap <strong>Start Tracking</strong> and allow GPS permission</li>
+                <li>Keep the page open while sailing - it updates every 2 seconds</li>
+            </ol>
+        </div>
+
+        <div class="note">
+            <strong>Tip:</strong> Keep your phone plugged in and screen on. Disable auto-lock in Settings to prevent the page from stopping.
+        </div>
+
+        <a href="/join" class="btn-action">Open Join Race Page</a>
+    </div>
+
+    <div class="method">
+        <h2>
+            Option 2: Traccar Client App
+            <span class="badge badge-recommended">Recommended</span>
+        </h2>
+        <p>Free GPS tracking app that runs reliably in the background. Best battery life and most accurate.</p>
+
+        <div class="steps">
+            <ol>
+                <li>Download <strong>Traccar Client</strong> from App Store or Google Play</li>
+                <li>Open the app and configure these settings:</li>
+            </ol>
+        </div>
+
+        <div class="config-box">
+            <div><span class="label">Device identifier:</span> <span class="value">YOUR_SAIL_NUMBER</span> (e.g., AUS123)</div>
+            <div><span class="label">Server URL:</span> <span class="value">https://api.finntracker.org/traccar?key=finn123</span></div>
+            <div><span class="label">Frequency:</span> <span class="value">2</span> (seconds)</div>
+            <div><span class="label">Distance:</span> <span class="value">0</span></div>
+            <div><span class="label">Angle:</span> <span class="value">0</span></div>
+        </div>
+
+        <div class="steps">
+            <ol start="3">
+                <li>Toggle the <strong>Service status</strong> switch to ON</li>
+                <li>Allow location permission (Always or While Using)</li>
+                <li>Your position will now appear on the Live Tracking page!</li>
+            </ol>
+        </div>
+
+        <div class="app-links">
+            <a href="https://apps.apple.com/app/traccar-client/id843156974" target="_blank">Download for iPhone</a>
+            <a href="https://play.google.com/store/apps/details?id=org.traccar.client" target="_blank">Download for Android</a>
+        </div>
+    </div>
+
+    <div class="method">
+        <h2>Option 3: OwnTracks App</h2>
+        <p>Another reliable GPS tracking app with background tracking support.</p>
+
+        <div class="steps">
+            <ol>
+                <li>Download <strong>OwnTracks</strong> from App Store or Google Play</li>
+                <li>Go to Settings and configure:</li>
+            </ol>
+        </div>
+
+        <div class="config-box">
+            <div><span class="label">Mode:</span> <span class="value">HTTP</span></div>
+            <div><span class="label">URL:</span> <span class="value">https://api.finntracker.org/owntracks</span></div>
+            <div><span class="label">DeviceID:</span> <span class="value">YOUR_SAIL_NUMBER</span></div>
+        </div>
+
+        <div class="app-links">
+            <a href="https://apps.apple.com/app/owntracks/id692424691" target="_blank">Download for iPhone</a>
+            <a href="https://play.google.com/store/apps/details?id=org.owntracks.android" target="_blank">Download for Android</a>
+        </div>
+    </div>
+
+    <div class="faq">
+        <h2>Frequently Asked Questions</h2>
+
+        <div class="faq-item">
+            <h3>How do I know my tracking is working?</h3>
+            <p>Open the Live page on another device and look for your boat marker on the map. Your sail number should appear in the boat list with a green "active" status.</p>
+        </div>
+
+        <div class="faq-item">
+            <h3>Can I track on multiple races at once?</h3>
+            <p>Yes! On the Join Race page, you can select multiple races (hold Ctrl/Cmd and click). Your position will be sent to all selected races simultaneously.</p>
+        </div>
+
+        <div class="faq-item">
+            <h3>What about battery life?</h3>
+            <p>The Traccar app is most battery-efficient. For browser tracking, keep your phone plugged in. A typical race day uses about 30-50% battery with GPS tracking.</p>
+        </div>
+
+        <div class="faq-item">
+            <h3>Does it work without cell signal?</h3>
+            <p>GPS works without cell signal, but you need data connection to send positions. If you lose signal, positions are queued and sent when connection returns (Traccar app only).</p>
+        </div>
+
+        <div class="faq-item">
+            <h3>Can spectators on shore watch me?</h3>
+            <p>Yes! Share the link <strong>finntracker.org</strong> with anyone. They can select the race and see all boats tracking in real-time on the map.</p>
+        </div>
+
+        <div class="faq-item">
+            <h3>What's my Device ID / Sail Number?</h3>
+            <p>Use your sail number without spaces (e.g., AUS123, NZL54, GBR4). This is how your boat appears on the tracker.</p>
+        </div>
+    </div>
+</main>
+
+</body>
+</html>
