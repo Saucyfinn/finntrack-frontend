@@ -264,6 +264,7 @@
 <script>
 (() => {
     const API_BASE = FinnAPI.apiBase;
+    const API_KEY = "finn123";
 
     const raceSelect = document.getElementById("raceSelect");
     const selectAllBtn = document.getElementById("selectAllBtn");
@@ -421,9 +422,12 @@
                 t: now
             };
 
-            return fetch(API_BASE + "/update", {
+            return fetch(API_BASE + "/update?key=" + API_KEY, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + API_KEY
+                },
                 body: JSON.stringify(payload)
             });
         });
