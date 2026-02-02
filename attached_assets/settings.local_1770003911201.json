@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "WebFetch(domain:finntracker.org)",
+      "Bash(xcrun simctl:*)",
+      "Bash(xcodebuild:*)",
+      "Bash(open -a Simulator)",
+      "Bash(defaults read:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(open \"https://finntracker.org/live.html\")",
+      "Bash(for i in 1 2 3 4 5 6 7 8 9 10)",
+      "Bash(do echo \"=== Check $i ===\" curl -s \"https://api.finntracker.org/boats?raceId=TRAINING-2026-R01\")",
+      "Bash(for i in 1 2 3 4 5)",
+      "Bash(do curl -s \"https://api.finntracker.org/boats?raceId=TRAINING-2026-R01\")",
+      "Bash(git init:*)",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nConnect FinnTrack iOS app to finntracker.org live tracking\n\n- Configure APIConfig to read base URL and API key from Info.plist\n- Connect to production API at api.finntracker.org\n- Add location usage description strings for iOS permissions\n- Simplify race start flow \\(use boat name as ID, skip join step\\)\n- Update default race ID to TRAINING-2026-R01\n- Swap Boat Name and Race ID positions in UI\n- Add debug logging for position updates\n\nThe app now successfully sends real-time position updates to the\nfinntracker.org backend, visible on the live tracking website.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}
