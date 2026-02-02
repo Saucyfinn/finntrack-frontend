@@ -399,9 +399,14 @@
         const fleet = getFleetInfo(boat.boatId);
         
         let marker = markers.get(boat.boatId);
+        const isNewBoat = !marker;
+        
         if (!marker) {
             marker = L.marker([lat, lng], { icon: finnIcon() }).addTo(map);
             markers.set(boat.boatId, marker);
+            
+            // Pan to new boat's location when it first connects
+            map.setView([lat, lng], 14);
         } else {
             marker.setLatLng([lat, lng]);
         }
