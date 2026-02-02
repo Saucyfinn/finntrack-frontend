@@ -33,7 +33,7 @@
       .map(r => {
         if (typeof r === "string") return { id: r, name: r };
         const id = r.id || r.raceId || r.slug || r.name || r.title;
-        const name = r.name || r.title || id;
+        const name = r.label || r.name || r.title || id;
         return id ? { id, name } : null;
       })
       .filter(Boolean);
