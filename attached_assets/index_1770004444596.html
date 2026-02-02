@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>FinnTrack</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+      select, button { padding: 8px 12px; margin-right: 8px; }
+      pre { background:#f6f6f6; padding:12px; overflow:auto; }
+    </style>
+  </head>
+  <body>
+    <h1>FinnTrack</h1>
+
+    <p>API: <code id="api">https://api.finntracker.org</code></p>
+
+    <div>
+      <label>Race:</label>
+      <select id="race"></select>
+      <button id="load">Load boats</button>
+    </div>
+
+    <h3>Boats</h3>
+    <pre id="out">Loading…</pre>
+
+    <script>
+      const API = "https://api.finntracker.org";
+      const raceSel = document.getElementById("race");
+      const out = document.getElementById("out");
+
+      async function loadRaces() {
+        try {
+          const r = await fetch(`${API}/races`);
+          if (!r.ok) {
+            throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+          }
+          const data = await r.json();
+        // Handle different response formats: array of strings, array of objects, or {races:[...]}
+        let races = Array.isArray(data) ? data : (data?.races || []);
+        races = races.map(r => {
+          if (typeof r === "string") return { id: r, name: r };
+          const id = r.id || r.raceId || r.slug || r.name || r.title;
+          const name = r.label || r.name || r.title || id;
+          return id ? { id, name } : null;
+        }).filter(Boolean);
+
+        raceSel.innerHTML = "";
+        (races.length ? races : [{id: "TEST-RACE", name: "TEST-RACE"}]).forEach(race => {
+          const opt = document.createElement("option");
+          opt.value = race.id;
+          opt.textContent = race.name;
+          raceSel.appendChild(opt);
+        });
+        } catch (error) {
+          console.error('Error in loadRaces:', error);
+          out.textContent = `Error loading races: ${error.message}`;
+        }
+      }
+
+      async function loadBoats() {
+        try {
+          const raceId = raceSel.value;
+          const r = await fetch(`${API}/races/${encodeURIComponent(raceId)}/boats?within=86400`);
+          if (!r.ok) {
+            throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+          }
+          const data = await r.json();
+          out.textContent = JSON.stringify(data, null, 2);
+        } catch (error) {
+          out.textContent = `Error loading boats: ${error.message}`;
+        }
+      }
+
+      document.getElementById("load").onclick = loadBoats;
+
+      loadRaces().then(loadBoats).catch(e => out.textContent = String(e));
+    </script>
+  </body>
+</html>
