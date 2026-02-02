@@ -79,6 +79,11 @@
             background: #005fa3;
         }
 
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
         .btn.secondary {
             background: #6c757d;
         }
@@ -103,27 +108,6 @@
         .event-info p {
             margin: 0;
             color: #666;
-        }
-
-        .location-status {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            padding: 1rem;
-            border-radius: 6px;
-            margin-top: 1rem;
-            font-size: 0.9rem;
-        }
-
-        .location-success {
-            background: #d4edda;
-            border-color: #c3e6cb;
-            color: #155724;
-        }
-
-        .location-error {
-            background: #f8d7da;
-            border-color: #f5c6cb;
-            color: #721c24;
         }
 
         .hidden {
@@ -176,29 +160,13 @@
             <div class="form-group">
                 <label for="raceSelect">Select Race:</label>
                 <select id="raceSelect" required>
-                    <option value="">Select a race</option>
-                    <option value="practice">Practice</option>
-                    <option value="race1">Race 1</option>
-                    <option value="race2">Race 2</option>
-                    <option value="race3">Race 3</option>
-                    <option value="race4">Race 4</option>
-                    <option value="race5">Race 5</option>
-                    <option value="race6">Race 6</option>
-                    <option value="race7">Race 7</option>
-                    <option value="race8">Race 8</option>
-                    <option value="race9">Race 9</option>
-                    <option value="race10">Race 10</option>
+                    <option value="">Loading races...</option>
                 </select>
-            </div>
-
-            <div id="locationStatus" class="location-status hidden">
-                <div id="locationMessage">Checking GPS access...</div>
-                <button type="button" id="requestLocationBtn" class="btn" style="margin-top: 0.5rem;">Enable GPS Tracking</button>
             </div>
 
             <div class="action-buttons">
                 <button type="button" class="btn secondary" onclick="history.back()">Back</button>
-                <button type="submit" class="btn" id="continueBtn" disabled>Continue to Live Tracking</button>
+                <button type="submit" class="btn" id="continueBtn">Continue to Live Tracking</button>
             </div>
 
         </form>
@@ -213,8 +181,6 @@
 <script src="/js/api.js"></script>
 <script>
 document.getElementById("apiBase").textContent = FinnAPI.apiBase || "(not loaded)";
-console.log("FinnAPI.apiBase:", FinnAPI.apiBase);
-console.log("typeof FinnAPI:", typeof FinnAPI);
 
 (function() {
     const boatSelect = document.getElementById('boatSelect');
@@ -227,13 +193,9 @@ console.log("typeof FinnAPI:", typeof FinnAPI);
     const selectedSkipper = document.getElementById('selectedSkipper');
     const selectedCountry = document.getElementById('selectedCountry');
     const continueBtn = document.getElementById('continueBtn');
-    const locationStatus = document.getElementById('locationStatus');
-    const locationMessage = document.getElementById('locationMessage');
-    const requestLocationBtn = document.getElementById('requestLocationBtn');
     const selectionForm = document.getElementById('selectionForm');
 
     let fleetData = null;
-    let locationPermissionGranted = false;
 
     async function loadFleetData() {
         try {
@@ -262,6 +224,27 @@ console.log("typeof FinnAPI:", typeof FinnAPI);
         }
     }
 
+    async function loadRaces() {
+        try {
+            const races = await FinnAPI.getRaces();
+            raceSelect.innerHTML = '<option value="">Select a race...</option>';
+            
+            if (races && races.length > 0) {
+                races.forEach(race => {
+                    const option = document.createElement('option');
+                    option.value = race.id;
+                    option.textContent = race.name;
+                    raceSelect.appendChild(option);
+                });
+            } else {
+                raceSelect.innerHTML = '<option value="">No races available</option>';
+            }
+        } catch (error) {
+            console.error('Failed to load races:', error);
+            raceSelect.innerHTML = '<option value="">Failed to load races</option>';
+        }
+    }
+
     boatSelect.addEventListener('change', function() {
         if (this.value && fleetData) {
             const selectedBoat = fleetData.entries.find(entry => entry.sailNumber === this.value);
@@ -270,106 +253,31 @@ console.log("typeof FinnAPI:", typeof FinnAPI);
                 selectedSkipper.textContent = selectedBoat.skipper || 'Unknown';
                 selectedCountry.textContent = selectedBoat.country || 'Unknown';
                 boatInfo.classList.remove('hidden');
-                checkFormValidity();
             }
         } else {
             boatInfo.classList.add('hidden');
-            checkFormValidity();
         }
     });
-
-    raceSelect.addEventListener('change', checkFormValidity);
-
-    function checkFormValidity() {
-        const boatSelected = boatSelect.value !== '';
-        const raceSelected = raceSelect.value !== '';
-
-        if (boatSelected && raceSelected && !locationStatus.classList.contains('hidden')) {
-            requestLocationAccess();
-        }
-
-        continueBtn.disabled = !(boatSelected && raceSelected && locationPermissionGranted);
-    }
-
-    function requestLocationAccess() {
-        locationStatus.classList.remove('hidden');
-        locationMessage.textContent = 'GPS access is required for live tracking.';
-
-        requestLocationBtn.addEventListener('click', function() {
-            if (!navigator.geolocation) {
-                showLocationError('Geolocation is not supported by this browser');
-                return;
-            }
-
-            locationMessage.textContent = 'Requesting GPS permission...';
-            requestLocationBtn.disabled = true;
-
-            navigator.geolocation.getCurrentPosition(
-                function(position) {
-                    locationPermissionGranted = true;
-                    locationStatus.classList.add('location-success');
-                    locationStatus.classList.remove('location-error');
-                    locationMessage.textContent = `GPS access granted! Accuracy: ${Math.round(position.coords.accuracy)}m`;
-                    requestLocationBtn.style.display = 'none';
-                    checkFormValidity();
-                },
-                function(error) {
-                    let message = 'GPS access failed. ';
-                    switch(error.code) {
-                        case error.PERMISSION_DENIED:
-                            message += 'Permission denied. Please allow location access in your browser settings.';
-                            break;
-                        case error.POSITION_UNAVAILABLE:
-                            message += 'Position unavailable. Make sure GPS is enabled.';
-                            break;
-                        case error.TIMEOUT:
-                            message += 'GPS timeout. Please try again.';
-                            break;
-                        default:
-                            message += 'An unknown error occurred.';
-                            break;
-                    }
-                    showLocationError(message);
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 60000
-                }
-            );
-        });
-    }
-
-    function showLocationError(message) {
-        locationStatus.classList.add('location-error');
-        locationStatus.classList.remove('location-success');
-        locationMessage.textContent = message;
-        requestLocationBtn.disabled = false;
-        requestLocationBtn.textContent = 'Try Again';
-        locationPermissionGranted = false;
-        checkFormValidity();
-    }
 
     selectionForm.addEventListener('submit', function(e) {
         e.preventDefault();
 
-        if (continueBtn.disabled) return;
-
         const selectedBoat = boatSelect.value;
         const selectedRace = raceSelect.value;
+
+        if (!selectedBoat || !selectedRace) {
+            alert('Please select both a boat and a race');
+            return;
+        }
 
         localStorage.setItem('selectedBoat', selectedBoat);
         localStorage.setItem('selectedRace', selectedRace);
 
-        const params = new URLSearchParams({
-            boat: selectedBoat,
-            race: selectedRace
-        });
-
-        window.location.href = '/join.html?' + params.toString();
+        window.location.href = '/?race=' + encodeURIComponent(selectedRace) + '&boat=' + encodeURIComponent(selectedBoat);
     });
 
     loadFleetData();
+    loadRaces();
 })();
 </script>
 

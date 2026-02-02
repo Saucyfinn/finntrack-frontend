@@ -562,9 +562,34 @@
         }
     });
     
+    function handleUrlParams() {
+        const params = new URLSearchParams(window.location.search);
+        const raceParam = params.get('race');
+        const boatParam = params.get('boat');
+        
+        if (raceParam) {
+            const checkRaceLoaded = setInterval(() => {
+                const options = Array.from(raceSelect.options);
+                const raceOption = options.find(opt => opt.value === raceParam);
+                if (raceOption) {
+                    raceSelect.value = raceParam;
+                    clearInterval(checkRaceLoaded);
+                    loadBoats();
+                    startPolling();
+                }
+            }, 100);
+            
+            setTimeout(() => clearInterval(checkRaceLoaded), 5000);
+        }
+        
+        if (boatParam) {
+            localStorage.setItem('followBoat', boatParam);
+        }
+    }
+    
     initMap();
     loadFleet();
-    loadRaces();
+    loadRaces().then(() => handleUrlParams());
 })();
 </script>
 
