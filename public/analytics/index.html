@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FinnTrack – Analytics</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        #app {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            height: calc(100vh - 56px);
+        }
+
+        #sidebar {
+            width: 280px;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        #sidebar h2 {
+            margin: 0 0 16px 0;
+            font-size: 1.25rem;
+        }
+
+        #sidebar h3 {
+            margin: 16px 0 8px 0;
+            font-size: 1rem;
+            color: #666;
+        }
+
+        #sidebar label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        #sidebar input, #sidebar select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-size: 0.875rem;
+        }
+
+        #sidebar button {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 8px;
+        }
+
+        #loadBtn {
+            background: var(--brand);
+            color: white;
+        }
+
+        #loadBtn:hover {
+            opacity: 0.9;
+        }
+
+        #exportCsvBtn {
+            background: #6c757d;
+            color: white;
+        }
+
+        #boatList {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        #boatList li {
+            padding: 8px 12px;
+            margin-bottom: 4px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: background 0.2s;
+        }
+
+        #boatList li:hover {
+            background: #e5e5e5;
+        }
+
+        #boatList li.active {
+            background: var(--brand);
+            color: white;
+        }
+
+        #analysis-panel {
+            padding: 24px;
+            overflow-y: auto;
+            background: #fafafa;
+        }
+
+        #analysis-panel h2 {
+            margin: 0 0 20px 0;
+        }
+
+        #stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        #stats > div {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        #stats strong {
+            display: block;
+            font-size: 0.75rem;
+            color: #666;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        #stats span {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--brand);
+        }
+
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .chart-container h3 {
+            margin: 0 0 16px 0;
+            font-size: 1rem;
+        }
+
+        canvas {
+            max-height: 250px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="brand">FinnTrack</div>
+    <nav>
+        <a href="/">Live</a>
+        <a href="/replay">Replay</a>
+        <a class="active" href="/analytics">Analytics</a>
+        <a href="/join">Join Race</a>
+    </nav>
+</header>
+
+<div id="app">
+    <div id="sidebar">
+        <h2>Analytics</h2>
+
+        <label for="raceSelect">Race</label>
+        <select id="raceSelect">
+            <option value="">Loading races...</option>
+        </select>
+
+        <label for="windInput">Wind Direction (° true)</label>
+        <input id="windInput" type="number" placeholder="Optional (e.g. 180)">
+
+        <button id="loadBtn">Load Race Data</button>
+
+        <h3>Boats</h3>
+        <ul id="boatList">
+            <li class="no-data">Load a race first</li>
+        </ul>
+
+        <h3>Export</h3>
+        <button id="exportCsvBtn">Export CSV</button>
+    </div>
+
+    <div id="analysis-panel">
+        <h2 id="boatTitle">Select a boat to view analytics</h2>
+
+        <div id="stats">
+            <div><strong>Distance</strong> <span id="statDistance">—</span></div>
+            <div><strong>Max Speed</strong> <span id="statMaxSpeed">—</span></div>
+            <div><strong>Tacks</strong> <span id="statTacks">—</span></div>
+            <div><strong>Gybes</strong> <span id="statGybes">—</span></div>
+            <div><strong>Avg VMG</strong> <span id="statAvgVMG">—</span></div>
+        </div>
+
+        <div class="chart-container">
+            <h3>Speed Over Time</h3>
+            <canvas id="speedChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+            <h3>VMG Over Time</h3>
+            <canvas id="vmgChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script>
+let raceId = null;
+let windDeg = null;
+let boats = [];
+let pointsByBoat = {};
+let speedChart = null;
+let vmgChart = null;
+
+const raceSelect = document.getElementById("raceSelect");
+
+async function loadRaces() {
+    try {
+        const races = await FinnAPI.getRaces();
+        raceSelect.innerHTML = '<option value="">Select a race...</option>';
+        races.forEach(race => {
+            const opt = document.createElement("option");
+            opt.value = race.id;
+            opt.textContent = race.name;
+            raceSelect.appendChild(opt);
+        });
+    } catch (err) {
+        console.error("Failed to load races:", err);
+        raceSelect.innerHTML = '<option value="">Failed to load races</option>';
+    }
+}
+
+document.getElementById("loadBtn").onclick = loadRace;
+document.getElementById("exportCsvBtn").onclick = exportCSV;
+
+async function loadRace() {
+    raceId = raceSelect.value;
+    windDeg = Number(document.getElementById("windInput").value) || null;
+
+    if (!raceId) {
+        alert("Please select a race");
+        return;
+    }
+
+    try {
+        const boatsData = await FinnAPI.getBoats(raceId);
+        boats = boatsData.map(b => b.boatId);
+        
+        pointsByBoat = {};
+        boatsData.forEach(boat => {
+            if (boat.telemetry) {
+                pointsByBoat[boat.boatId] = [{
+                    t: boat.telemetry.t || Date.now(),
+                    lat: boat.telemetry.lat,
+                    lon: boat.telemetry.lon,
+                    sog: boat.telemetry.sog,
+                    cog: boat.telemetry.cog
+                }];
+            }
+        });
+
+        buildBoatList();
+    } catch (err) {
+        alert("Failed to load race data: " + err.message);
+    }
+}
+
+function buildBoatList() {
+    const ul = document.getElementById("boatList");
+    ul.innerHTML = "";
+
+    if (boats.length === 0) {
+        ul.innerHTML = '<li class="no-data">No boats found</li>';
+        return;
+    }
+
+    boats.forEach(boatId => {
+        const li = document.createElement("li");
+        li.textContent = boatId;
+        li.onclick = () => {
+            document.querySelectorAll("#boatList li").forEach(el => el.classList.remove("active"));
+            li.classList.add("active");
+            loadBoat(boatId);
+        };
+        ul.appendChild(li);
+    });
+}
+
+function loadBoat(boatId) {
+    const pts = pointsByBoat[boatId] || [];
+
+    document.getElementById("boatTitle").innerText = boatId;
+
+    if (pts.length < 2) {
+        document.getElementById("statDistance").innerText = "—";
+        document.getElementById("statMaxSpeed").innerText = "—";
+        document.getElementById("statTacks").innerText = "—";
+        document.getElementById("statGybes").innerText = "—";
+        document.getElementById("statAvgVMG").innerText = "—";
+        return;
+    }
+
+    const speed = pts.map(p => (p.sog || 0));
+    const timeLabels = pts.map(p => new Date(p.t).toLocaleTimeString());
+
+    const vmg = computeVMG(pts);
+    const { tacks, gybes } = detectManeuvers(pts);
+    const dist = computeDistance(pts);
+    const maxSpeed = Math.max(...speed).toFixed(2);
+    const avgVMG = vmg.length ? (vmg.reduce((a, b) => a + b, 0) / vmg.length).toFixed(2) : "—";
+
+    document.getElementById("statDistance").innerText = dist.toFixed(2) + " km";
+    document.getElementById("statMaxSpeed").innerText = maxSpeed + " kn";
+    document.getElementById("statTacks").innerText = tacks;
+    document.getElementById("statGybes").innerText = gybes;
+    document.getElementById("statAvgVMG").innerText = avgVMG + " kn";
+
+    drawSpeedChart(timeLabels, speed);
+    drawVMGChart(timeLabels, vmg);
+}
+
+function computeDistance(pts) {
+    let total = 0;
+    for (let i = 1; i < pts.length; i++) {
+        total += haversine(pts[i - 1], pts[i]);
+    }
+    return total;
+}
+
+function haversine(a, b) {
+    const R = 6371;
+    const dLat = (b.lat - a.lat) * Math.PI / 180;
+    const dLon = (b.lon - a.lon) * Math.PI / 180;
+    const lat1 = a.lat * Math.PI / 180;
+    const lat2 = b.lat * Math.PI / 180;
+
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function computeVMG(pts) {
+    if (!windDeg) return pts.map(_ => 0);
+
+    return pts.map(p => {
+        if (!p.sog || p.cog == null) return 0;
+        const angleDiff = Math.abs((p.cog - windDeg + 360) % 360);
+        return p.sog * Math.cos(angleDiff * Math.PI / 180);
+    });
+}
+
+function detectManeuvers(pts) {
+    let tacks = 0, gybes = 0;
+
+    for (let i = 2; i < pts.length; i++) {
+        const prev = pts[i - 1].cog;
+        const curr = pts[i].cog;
+
+        if (prev == null || curr == null) continue;
+
+        const diff = ((curr - prev + 540) % 360) - 180;
+
+        if (Math.abs(diff) > 60) {
+            if (diff > 0) gybes++;
+            else tacks++;
+        }
+    }
+    return { tacks, gybes };
+}
+
+function drawSpeedChart(labels, data) {
+    const ctx = document.getElementById("speedChart");
+
+    if (speedChart) speedChart.destroy();
+
+    speedChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Speed (kn)',
+                data,
+                borderColor: '#0b66d6',
+                backgroundColor: 'rgba(11,102,214,0.1)',
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { x: { display: false } }
+        }
+    });
+}
+
+function drawVMGChart(labels, data) {
+    const ctx = document.getElementById("vmgChart");
+
+    if (vmgChart) vmgChart.destroy();
+
+    vmgChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [{
+                label: 'VMG (kn)',
+                data,
+                borderColor: '#ff6600',
+                backgroundColor: 'rgba(255,102,0,0.1)',
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { x: { display: false } }
+        }
+    });
+}
+
+function exportCSV() {
+    if (!boats.length) {
+        alert("Load a race first.");
+        return;
+    }
+
+    let rows = ["boatId,t,lat,lon,sog,cog"];
+
+    boats.forEach(boatId => {
+        (pointsByBoat[boatId] || []).forEach(p => {
+            rows.push(`${boatId},${p.t},${p.lat},${p.lon},${p.sog || ""},${p.cog || ""}`);
+        });
+    });
+
+    const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${raceId}-analytics.csv`;
+    a.click();
+}
+
+loadRaces();
+</script>
+
+</body>
+</html>
