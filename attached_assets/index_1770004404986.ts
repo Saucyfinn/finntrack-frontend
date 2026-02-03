@@ -417,21 +417,45 @@ export default {
       }));
     }
 
-    // ---- Traccar endpoint (form data) ----
-    if (request.method === "POST" && path === "/traccar") {
+    // ---- Traccar endpoint (GET for OsmAnd protocol, POST for form data) ----
+    if (path === "/traccar") {
       if (!isAuthed(request, env)) return jsonResponse({ ok: false, error: "Unauthorized" }, 401, {}, corsOrigin);
 
-      const formData = await request.formData().catch(() => null);
-      if (!formData) return jsonResponse({ ok: false, error: "Invalid form data" }, 400, {}, corsOrigin);
+      let id: string | undefined;
+      let lat: number;
+      let lon: number;
+      let speed: number;
+      let bearing: number;
+      let accuracy: number;
+      let timestamp: number;
+      let raceId = "traccar"; // Default race
 
-      // Parse Traccar fields
-      const id = formData.get("id")?.toString();
-      const lat = parseFloat(formData.get("lat")?.toString() || "");
-      const lon = parseFloat(formData.get("lon")?.toString() || "");
-      const speed = parseFloat(formData.get("speed")?.toString() || "0");
-      const bearing = parseFloat(formData.get("bearing")?.toString() || "0");
-      const accuracy = parseFloat(formData.get("accuracy")?.toString() || "0");
-      const timestamp = parseInt(formData.get("timestamp")?.toString() || "") || Date.now();
+      if (request.method === "GET") {
+        // OsmAnd protocol - params in URL query string
+        id = url.searchParams.get("id") || undefined;
+        lat = parseFloat(url.searchParams.get("lat") || "");
+        lon = parseFloat(url.searchParams.get("lon") || "");
+        speed = parseFloat(url.searchParams.get("speed") || "0");
+        bearing = parseFloat(url.searchParams.get("bearing") || url.searchParams.get("course") || "0");
+        accuracy = parseFloat(url.searchParams.get("accuracy") || "0");
+        timestamp = parseInt(url.searchParams.get("timestamp") || "") || Date.now();
+        // Allow overriding raceId via query param
+        raceId = url.searchParams.get("raceId") || "traccar";
+      } else if (request.method === "POST") {
+        // Form data from older Traccar versions
+        const formData = await request.formData().catch(() => null);
+        if (!formData) return jsonResponse({ ok: false, error: "Invalid form data" }, 400, {}, corsOrigin);
+
+        id = formData.get("id")?.toString();
+        lat = parseFloat(formData.get("lat")?.toString() || "");
+        lon = parseFloat(formData.get("lon")?.toString() || "");
+        speed = parseFloat(formData.get("speed")?.toString() || "0");
+        bearing = parseFloat(formData.get("bearing")?.toString() || "0");
+        accuracy = parseFloat(formData.get("accuracy")?.toString() || "0");
+        timestamp = parseInt(formData.get("timestamp")?.toString() || "") || Date.now();
+      } else {
+        return jsonResponse({ error: "Method not allowed" }, 405, {}, corsOrigin);
+      }
 
       // Validation
       if (!id) return jsonResponse({ ok: false, error: "Missing device id" }, 400, {}, corsOrigin);
@@ -439,7 +463,7 @@ export default {
 
       // Map to existing update format
       const body = {
-        raceId: "traccar", // Default race for Traccar devices
+        raceId,
         boatId: id,
         boatName: `Device ${id}`,
         lat,
@@ -451,7 +475,6 @@ export default {
         accuracy: !isNaN(accuracy) ? accuracy : undefined
       };
 
-      const raceId = "traccar";
       const doId = env.RACE_STATE.idFromName(raceId);
       const stub = env.RACE_STATE.get(doId);
 
@@ -476,18 +499,6 @@ export default {
       }, 200, {}, corsOrigin);
     }
 
-    if (request.method === "GET" && path === "/traccar") {
-      return jsonResponse({
-        endpoint: "/traccar",
-        method: "POST",
-        description: "Accept Traccar Client position updates",
-        auth: "?key=... query parameter (Traccar clients can't send headers)",
-        contentType: "application/x-www-form-urlencoded",
-        requiredFields: ["id", "lat", "lon"],
-        optionalFields: ["speed", "bearing", "accuracy", "timestamp"],
-        note: "Automatically maps to race 'traccar'"
-      }, 200, {}, corsOrigin);
-    }
 
     // ---- Fallback ----
     return jsonResponse({ error: "Not found", path }, 404, {}, corsOrigin);
