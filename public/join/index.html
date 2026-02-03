@@ -444,25 +444,26 @@
         if (selectedRaces.length === 0 || !boatId) return;
 
         const promises = selectedRaces.map(raceId => {
-            const payload = {
+            const params = new URLSearchParams({
+                key: API_KEY,
                 raceId: raceId,
                 boatId: boatId,
-                boatName: boatNameInput.value.trim() || undefined,
-                lat: lastPosition.coords.latitude,
-                lon: lastPosition.coords.longitude,
-                sog: lastPosition.coords.speed != null ? lastPosition.coords.speed * 1.94384 : undefined,
-                cog: lastPosition.coords.heading != null ? lastPosition.coords.heading : undefined,
-                t: now
-            };
-
-            return fetch(API_BASE + "/update?key=" + API_KEY, {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json"
-                },
-                mode: "cors",
-                body: JSON.stringify(payload)
+                lat: lastPosition.coords.latitude.toString(),
+                lon: lastPosition.coords.longitude.toString(),
+                t: now.toString()
             });
+            
+            const boatName = boatNameInput.value.trim();
+            if (boatName) params.set("boatName", boatName);
+            if (lastPosition.coords.speed != null) {
+                params.set("sog", (lastPosition.coords.speed * 1.94384).toFixed(1));
+            }
+            if (lastPosition.coords.heading != null) {
+                params.set("cog", lastPosition.coords.heading.toFixed(0));
+            }
+
+            // Use GET to avoid CORS preflight (Safari-friendly)
+            return fetch(API_BASE + "/update?" + params.toString());
         });
 
         try {
