@@ -458,9 +458,9 @@
             return fetch(API_BASE + "/update?key=" + API_KEY, {
                 method: "POST",
                 headers: { 
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer " + API_KEY
+                    "Content-Type": "application/json"
                 },
+                mode: "cors",
                 body: JSON.stringify(payload)
             });
         });
