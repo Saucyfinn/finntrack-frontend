@@ -90,6 +90,24 @@
       return this.getLiveBoats(raceId, within);
     },
 
+    async getFleet(raceId) {
+      try {
+        const u = raceId ? `/fleet?raceId=${encodeURIComponent(raceId)}` : "/fleet";
+        const raw = await jget(u);
+        return raw?.entries || raw?.fleet || raw || [];
+      } catch (e) {
+        console.log("[FinnAPI] getFleet failed, trying local data");
+        try {
+          const res = await fetch("/data/fleet.json");
+          if (res.ok) {
+            const data = await res.json();
+            return data?.entries || [];
+          }
+        } catch {}
+        return [];
+      }
+    },
+
     getLiveWsUrl(raceId) {
       const base = API_BASE || window.location.origin;
       const protocol = base.startsWith("https") ? "wss" : "ws";
