@@ -289,8 +289,28 @@
     let lastSendTime = 0;
     let lastPosition = null;
     let sendInterval = null;
+    let wakeLock = null;
 
     const SEND_INTERVAL_MS = 2000;
+
+    async function requestWakeLock() {
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Wake Lock activated');
+            }
+        } catch (err) {
+            console.log('Wake Lock failed:', err.message);
+        }
+    }
+
+    async function releaseWakeLock() {
+        if (wakeLock) {
+            await wakeLock.release();
+            wakeLock = null;
+            console.log('Wake Lock released');
+        }
+    }
 
     async function loadFleetEntries() {
         try {
@@ -339,9 +359,22 @@
 
     async function loadRaces() {
         try {
-            const races = await FinnAPI.getRaces();
+            let races = [];
+            try {
+                races = await FinnAPI.getRaces();
+            } catch (apiErr) {
+                console.log("API failed, trying local data:", apiErr.message);
+                const localRes = await fetch("/data/races.json");
+                if (localRes.ok) {
+                    const localData = await localRes.json();
+                    races = (localData.races || []).map(r => ({
+                        id: r.id,
+                        name: r.label || r.id
+                    }));
+                }
+            }
+            
             allRaces = races;
-
             raceSelect.innerHTML = "";
 
             if (races.length === 0) {
@@ -523,6 +556,8 @@
 
         sendInterval = setInterval(sendUpdate, SEND_INTERVAL_MS);
 
+        requestWakeLock();
+
         startBtn.style.display = "none";
         stopBtn.style.display = "block";
         setTrackingStatus("Active", "ok");
@@ -543,6 +578,8 @@
             clearInterval(sendInterval);
             sendInterval = null;
         }
+
+        releaseWakeLock();
 
         startBtn.style.display = "block";
         stopBtn.style.display = "none";
