@@ -1,5 +1,6 @@
 {
   "races": [
+    { "id": "LIVE", "label": "Live Tracking (All Boats)", "series": "Live", "raceNo": 0 },
     { "id": "AUSNATS-2026-R01", "label": "Australian Nationals 2026 - Race 1", "series": "Australian Nationals 2026", "raceNo": 1 },
     { "id": "AUSNATS-2026-R02", "label": "Australian Nationals 2026 - Race 2", "series": "Australian Nationals 2026", "raceNo": 2 },
     { "id": "AUSNATS-2026-R03", "label": "Australian Nationals 2026 - Race 3", "series": "Australian Nationals 2026", "raceNo": 3 },
