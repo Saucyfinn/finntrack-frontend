@@ -197,7 +197,13 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const map = L.map('map').setView([-27.4667, 153.1833], 14);
+    const params = new URLSearchParams(window.location.search);
+    const initLat = parseFloat(params.get('lat')) || -27.4667;
+    const initLon = parseFloat(params.get('lon')) || 153.1833;
+    const initZoom = parseInt(params.get('zoom')) || 14;
+    const followDevice = params.get('follow');
+    
+    const map = L.map('map').setView([initLat, initLon], initZoom);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap'
@@ -214,6 +220,7 @@
     const wsDot = document.getElementById('wsDot');
     
     let activeTab = 'all';
+    let shouldFollowDevice = !!followDevice;
     
     document.querySelectorAll('.tab').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -373,14 +380,19 @@
         const msg = JSON.parse(e.data);
         
         if (msg.type === 'init') {
-          (msg.boats || []).forEach(updateBoat);
+          (msg.boats || msg.devices || []).forEach(updateBoat);
           (msg.phones || []).forEach(updatePhone);
         } else if (msg.type === 'boat_update') {
           updateBoat(msg.boat);
+        } else if (msg.type === 'device_update') {
+          updateBoat(msg.device || msg.boat);
+          if (shouldFollowDevice && msg.device && (msg.device.deviceId === followDevice || msg.device.boatId === followDevice)) {
+            map.setView([msg.device.lat, msg.device.lon], map.getZoom());
+          }
         } else if (msg.type === 'phone_update') {
           updatePhone(msg.phone);
-        } else if (msg.type === 'boat_disconnect') {
-          removeBoat(msg.boatId);
+        } else if (msg.type === 'boat_disconnect' || msg.type === 'device_disconnect') {
+          removeBoat(msg.boatId || msg.deviceId);
         } else if (msg.type === 'phone_disconnect') {
           removePhone(msg.deviceId);
         }

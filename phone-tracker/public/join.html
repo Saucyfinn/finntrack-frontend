@@ -166,6 +166,20 @@
       background: #1e3a5f;
       color: white;
     }
+    .btn-map {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      text-align: center;
+      text-decoration: none;
+      margin-top: 12px;
+    }
   </style>
 </head>
 <body>
@@ -212,6 +226,7 @@
       
       <button class="btn-start" id="startBtn">Start Tracking</button>
       <button class="btn-stop" id="stopBtn">Stop Tracking</button>
+      <a href="/map.html" class="btn-map" id="mapBtn" style="display:none;">View on Live Map</a>
       
       <div class="status-card">
         <div class="status-row">
@@ -250,6 +265,7 @@
     const updateCount = document.getElementById('updateCount');
     const coords = document.getElementById('coords');
     const deviceTypeGrid = document.getElementById('deviceTypeGrid');
+    const mapBtn = document.getElementById('mapBtn');
     
     let allRaces = [];
     let allSeries = [];
@@ -396,6 +412,9 @@
       coords.textContent = `${lat}, ${lon} | ${speed}`;
       gpsStatus.textContent = 'Active';
       gpsStatus.className = 'status-value status-ok';
+      
+      const boatId = boatIdInput.value.trim();
+      mapBtn.href = `/map.html?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&zoom=15&follow=${encodeURIComponent(boatId)}`;
     }
     
     function onPositionError(err) {
@@ -441,6 +460,7 @@
       
       startBtn.style.display = 'none';
       stopBtn.style.display = 'block';
+      mapBtn.style.display = 'block';
       
       seriesSelect.disabled = true;
       raceSelect.disabled = true;
@@ -462,6 +482,7 @@
       
       startBtn.style.display = 'block';
       stopBtn.style.display = 'none';
+      mapBtn.style.display = 'none';
       trackingStatus.textContent = 'Stopped';
       trackingStatus.className = 'status-value status-pending';
       
