@@ -79,6 +79,23 @@
       border-bottom: 1px solid #eee;
       font-size: 14px;
     }
+    .sidebar-controls {
+      display: flex;
+      gap: 12px;
+      padding: 8px 16px;
+      background: #f0f4f8;
+      border-bottom: 1px solid #ddd;
+    }
+    .toggle-control {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .toggle-control input {
+      cursor: pointer;
+    }
     .list {
       flex: 1;
       overflow-y: auto;
@@ -195,6 +212,10 @@
   
   <div class="sidebar" id="sidebar">
     <div class="sidebar-title">Boats</div>
+    <div class="sidebar-controls">
+      <label class="toggle-control"><input type="checkbox" id="showTracks" checked> Tracks</label>
+      <label class="toggle-control"><input type="checkbox" id="showNames"> Names</label>
+    </div>
     <div class="list" id="itemList">
       <div class="empty-state">No boats connected</div>
     </div>
@@ -233,6 +254,8 @@
     const wsDot = document.getElementById('wsDot');
     const sidebar = document.getElementById('sidebar');
     const hiddenDevices = new Set();
+    let showTracks = true;
+    let showNames = false;
     
     let shouldFollowDevice = !!followDevice;
     
@@ -250,6 +273,27 @@
     });
     
     document.getElementById('fitAllBtn').addEventListener('click', fitAllBoats);
+    
+    document.getElementById('showTracks').addEventListener('change', (e) => {
+      showTracks = e.target.checked;
+      boatTracks.forEach((track, id) => {
+        if (showTracks && !hiddenDevices.has(id)) {
+          track.addTo(map);
+        } else {
+          map.removeLayer(track);
+        }
+      });
+    });
+    
+    document.getElementById('showNames').addEventListener('change', (e) => {
+      showNames = e.target.checked;
+      boats.forEach((boat, id) => {
+        if (boatMarkers.has(id)) {
+          const marker = boatMarkers.get(id);
+          marker.setIcon(createBoatIcon(boat.boatId, boat.cog || 0, boat.name));
+        }
+      });
+    });
     
     function fitAllBoats() {
       const allMarkers = [...boatMarkers.values(), ...phoneMarkers.values()];
@@ -284,15 +328,15 @@
       return match ? match[1].toUpperCase() : 'default';
     }
     
-    function createBoatIcon(sailNum, heading) {
+    function createBoatIcon(sailNum, heading, skipperName) {
       const country = getCountryFromSail(sailNum);
       const colors = nationalColors[country] || nationalColors['default'];
-      const displayNum = sailNum ? sailNum.replace(/^[A-Z]{2,3}\s*/i, '').trim() : '?';
       const rotation = (heading || 0);
+      const labelText = showNames && skipperName ? `${sailNum} - ${skipperName}` : (sailNum || '?');
       
       return L.divIcon({
         className: 'boat-marker',
-        html: `<div style="position: relative; width: 70px; height: 28px;">
+        html: `<div style="position: relative; width: 150px; height: 28px;">
           <div style="position: absolute; left: 0; width: 24px; height: 28px; transform: rotate(${rotation}deg); transform-origin: center center;">
             <svg viewBox="0 0 44 52" width="24" height="28">
               <path d="M22 2 L40 18 L38 42 Q22 50 6 42 L4 18 Z" 
@@ -302,9 +346,9 @@
           </div>
           <div style="position: absolute; left: 26px; top: 6px; white-space: nowrap;
             font-size: 11px; font-weight: bold; color: #333;
-            text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;">${sailNum || '?'}</div>
+            text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;">${labelText}</div>
         </div>`,
-        iconSize: [70, 28],
+        iconSize: [150, 28],
         iconAnchor: [12, 14]
       });
     }
@@ -325,6 +369,7 @@
       boats.set(boat.boatId, boat);
       const sailNum = boat.boatId || '';
       const heading = boat.cog || boat.heading || 0;
+      const skipperName = boat.name || '';
       
       const isNew = !boatMarkers.has(boat.boatId);
       
@@ -339,18 +384,19 @@
         boatTracks.get(boat.boatId).setLatLngs(points);
       } else {
         const trackColor = getTrackColor(sailNum);
-        const track = L.polyline(points, { color: trackColor, weight: 3, opacity: 0.8 }).addTo(map);
+        const track = L.polyline(points, { color: trackColor, weight: 3, opacity: 0.8 });
+        if (showTracks && !hiddenDevices.has(boat.boatId)) track.addTo(map);
         boatTracks.set(boat.boatId, track);
       }
       
       if (boatMarkers.has(boat.boatId)) {
         const marker = boatMarkers.get(boat.boatId);
         marker.setLatLng([boat.lat, boat.lon]);
-        marker.setIcon(createBoatIcon(sailNum, heading));
+        marker.setIcon(createBoatIcon(sailNum, heading, skipperName));
       } else {
-        const marker = L.marker([boat.lat, boat.lon], { icon: createBoatIcon(sailNum, heading) })
+        const marker = L.marker([boat.lat, boat.lon], { icon: createBoatIcon(sailNum, heading, skipperName) })
           .addTo(map)
-          .bindPopup(`<b>${boat.name || boat.boatId}</b><br>Speed: ${(boat.sog || 0).toFixed(1)} kn`);
+          .bindPopup(`<b>${skipperName || sailNum}</b><br>Speed: ${(boat.sog || 0).toFixed(1)} kn`);
         boatMarkers.set(boat.boatId, marker);
       }
       
@@ -364,7 +410,8 @@
     }
     
     function updatePhone(phone) {
-      const boatId = phone.name || phone.deviceId;
+      const boatId = phone.boatId || phone.deviceId;
+      if (boats.has(boatId)) return;
       updateBoat({
         boatId: boatId,
         name: phone.name || phone.deviceId,
