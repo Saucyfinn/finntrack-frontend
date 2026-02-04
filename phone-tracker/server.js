@@ -15,10 +15,41 @@ const connectedPhones = new Map();
 const connectedBoats = new Map();
 const viewers = new Set();
 
-const boatHistory = new Map();
-const phoneHistory = new Map();
-const MAX_HISTORY_POINTS = 1000;
-const HISTORY_RETENTION_MS = 3600000;
+let boatHistory = new Map();
+let phoneHistory = new Map();
+const HISTORY_FILE = path.join(__dirname, 'data', 'history.json');
+
+function loadHistory() {
+  try {
+    if (fs.existsSync(HISTORY_FILE)) {
+      const data = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
+      boatHistory = new Map(Object.entries(data.boats || {}));
+      phoneHistory = new Map(Object.entries(data.phones || {}));
+      console.log(`Loaded history: ${boatHistory.size} boats, ${phoneHistory.size} phones`);
+    }
+  } catch (e) {
+    console.log('No existing history file or error loading:', e.message);
+  }
+}
+
+function saveHistory() {
+  try {
+    const dir = path.dirname(HISTORY_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const data = {
+      boats: Object.fromEntries(boatHistory),
+      phones: Object.fromEntries(phoneHistory),
+      savedAt: Date.now()
+    };
+    fs.writeFileSync(HISTORY_FILE, JSON.stringify(data));
+  } catch (e) {
+    console.error('Error saving history:', e.message);
+  }
+}
+
+loadHistory();
 
 const races = [
   { raceId: 'race-2026-1', title: 'Australian Nationals 2026 - Race 1', series: 'aus-nationals-2026' },
@@ -49,22 +80,14 @@ function addBoatHistoryPoint(boatId, point) {
   if (!boatHistory.has(boatId)) {
     boatHistory.set(boatId, []);
   }
-  const history = boatHistory.get(boatId);
-  history.push(point);
-  if (history.length > MAX_HISTORY_POINTS) {
-    history.shift();
-  }
+  boatHistory.get(boatId).push(point);
 }
 
 function addPhoneHistoryPoint(deviceId, point) {
   if (!phoneHistory.has(deviceId)) {
     phoneHistory.set(deviceId, []);
   }
-  const history = phoneHistory.get(deviceId);
-  history.push(point);
-  if (history.length > MAX_HISTORY_POINTS) {
-    history.shift();
-  }
+  phoneHistory.get(deviceId).push(point);
 }
 
 app.get('/race/list', (req, res) => {
@@ -364,25 +387,18 @@ setInterval(() => {
       broadcastToViewers({ type: 'boat_disconnect', boatId: id });
     }
   }
-  
-  const cutoff = now - HISTORY_RETENTION_MS;
-  for (const [id, history] of boatHistory) {
-    const filtered = history.filter(p => p.ts >= cutoff);
-    if (filtered.length === 0) {
-      boatHistory.delete(id);
-    } else {
-      boatHistory.set(id, filtered);
-    }
-  }
-  for (const [id, history] of phoneHistory) {
-    const filtered = history.filter(p => p.ts >= cutoff);
-    if (filtered.length === 0) {
-      phoneHistory.delete(id);
-    } else {
-      phoneHistory.set(id, filtered);
-    }
-  }
 }, 10000);
+
+setInterval(saveHistory, 30000);
+
+process.on('SIGTERM', () => {
+  saveHistory();
+  process.exit(0);
+});
+process.on('SIGINT', () => {
+  saveHistory();
+  process.exit(0);
+});
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`FinnTrack server running at http://0.0.0.0:${PORT}`);
