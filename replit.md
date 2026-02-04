@@ -57,9 +57,21 @@ public/                  # Legacy FinnTrack frontend (archived)
 - Mobile-friendly responsive design
 - Speed (knots for boats, km/h for phones) and heading display
 
+## Replay Feature
+- `/replay.html` - Playback recorded tracks with time slider
+- Play/Pause/Reset controls with 1x/2x/5x/10x speed options
+- Shows boat and phone trails on the map
+- Data retained for 1 hour in memory
+
+## Analytics Feature
+- `/analytics.html` - View performance statistics
+- Tabs for Boats and Phones
+- Per-device stats: avg speed, max speed, distance, duration
+- Speed charts over time using Chart.js
+- Session summary with totals
+
 ## Current Limitations
-- In-memory storage (data not persisted between restarts)
-- Replay and Analytics features not yet implemented
+- In-memory storage (data not persisted between restarts, 1 hour retention)
 - Static race/fleet data (not loaded from external sources)
 
 ## Cloudflare Worker Integration

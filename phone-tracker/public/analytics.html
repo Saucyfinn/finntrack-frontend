@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinnTrack - Analytics</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+    }
+    .header {
+      background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    .header h1 { font-size: 24px; margin-bottom: 4px; }
+    .header p { opacity: 0.8; font-size: 14px; }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .tab {
+      padding: 12px 24px;
+      background: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .tab.active {
+      background: #1e3a5f;
+      color: white;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .stat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .stat-name {
+      font-weight: 600;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .stat-badge {
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .badge-boat { background: #fff3e0; color: #e65100; }
+    .badge-phone { background: #ede7f6; color: #5e35b1; }
+    .stat-values {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .stat-item {
+      text-align: center;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1e3a5f;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: #666;
+      margin-top: 4px;
+    }
+    .chart-container {
+      height: 120px;
+    }
+    .empty-state {
+      background: white;
+      border-radius: 12px;
+      padding: 60px 20px;
+      text-align: center;
+      color: #999;
+    }
+    .empty-icon { font-size: 48px; margin-bottom: 16px; }
+    .back-link {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 24px;
+      background: #1e3a5f;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+    .summary-card {
+      background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+      color: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .summary-title { font-size: 18px; margin-bottom: 16px; }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 16px;
+    }
+    .summary-item { text-align: center; }
+    .summary-value { font-size: 32px; font-weight: 700; }
+    .summary-label { font-size: 12px; opacity: 0.8; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>⛵ Analytics</h1>
+    <p>Track performance and statistics</p>
+  </div>
+  
+  <div class="container">
+    <div class="tabs">
+      <button class="tab active" data-tab="boats">Boats</button>
+      <button class="tab" data-tab="phones">Phones</button>
+    </div>
+    
+    <div class="summary-card" id="summaryCard">
+      <div class="summary-title">Session Summary</div>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-value" id="totalDevices">0</div>
+          <div class="summary-label">Devices</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-value" id="totalPoints">0</div>
+          <div class="summary-label">Data Points</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-value" id="totalDistance">0</div>
+          <div class="summary-label">km Total</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-value" id="avgSpeed">0</div>
+          <div class="summary-label">Avg Speed</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="stats-grid" id="statsGrid">
+      <div class="empty-state">
+        <div class="empty-icon">📊</div>
+        <div>No tracking data yet</div>
+        <p style="margin-top:8px;font-size:14px;">Start tracking boats or phones to see analytics</p>
+      </div>
+    </div>
+    
+    <a href="/" class="back-link">← Back to Home</a>
+  </div>
+
+  <script>
+    let currentTab = 'boats';
+    let boatAnalytics = [];
+    let phoneAnalytics = [];
+    
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentTab = tab.dataset.tab;
+        render();
+      });
+    });
+    
+    async function loadAnalytics() {
+      try {
+        const [boatsRes, phonesRes] = await Promise.all([
+          fetch('/api/analytics/boats'),
+          fetch('/api/analytics/phones')
+        ]);
+        const boatsData = await boatsRes.json();
+        const phonesData = await phonesRes.json();
+        
+        boatAnalytics = boatsData.analytics || [];
+        phoneAnalytics = phonesData.analytics || [];
+        
+        render();
+      } catch (e) {
+        console.error('Failed to load analytics', e);
+      }
+    }
+    
+    function formatDuration(seconds) {
+      const m = Math.floor(seconds / 60);
+      const h = Math.floor(m / 60);
+      if (h > 0) return `${h}h ${m % 60}m`;
+      return `${m}m`;
+    }
+    
+    function render() {
+      const data = currentTab === 'boats' ? boatAnalytics : phoneAnalytics;
+      const isBoat = currentTab === 'boats';
+      const speedUnit = isBoat ? 'kn' : 'm/s';
+      
+      const totalDevices = data.length;
+      const totalPoints = data.reduce((s, d) => s + d.points, 0);
+      const totalDistance = data.reduce((s, d) => s + d.distance, 0);
+      const speeds = data.map(d => d.avgSpeed).filter(s => s > 0);
+      const avgSpeed = speeds.length > 0 ? speeds.reduce((a,b) => a+b, 0) / speeds.length : 0;
+      
+      document.getElementById('totalDevices').textContent = totalDevices;
+      document.getElementById('totalPoints').textContent = totalPoints;
+      document.getElementById('totalDistance').textContent = totalDistance.toFixed(1);
+      document.getElementById('avgSpeed').textContent = avgSpeed.toFixed(1) + ' ' + speedUnit;
+      
+      if (data.length === 0) {
+        document.getElementById('statsGrid').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">📊</div>
+            <div>No ${currentTab} data yet</div>
+            <p style="margin-top:8px;font-size:14px;">Start tracking to see analytics</p>
+          </div>
+        `;
+        return;
+      }
+      
+      document.getElementById('statsGrid').innerHTML = data.map((item, idx) => {
+        const id = item.boatId || item.deviceId;
+        const speedKey = isBoat ? 'sog' : 'speed';
+        const chartId = `chart-${idx}`;
+        
+        return `
+          <div class="stat-card">
+            <div class="stat-header">
+              <div class="stat-name">
+                ${isBoat ? '⛵' : '📱'} ${item.name}
+              </div>
+              <span class="stat-badge badge-${isBoat ? 'boat' : 'phone'}">${isBoat ? 'boat' : 'phone'}</span>
+            </div>
+            <div class="stat-values">
+              <div class="stat-item">
+                <div class="stat-value">${item.avgSpeed}</div>
+                <div class="stat-label">Avg Speed (${speedUnit})</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">${item.maxSpeed}</div>
+                <div class="stat-label">Max Speed (${speedUnit})</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">${item.distance}</div>
+                <div class="stat-label">Distance (km)</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">${formatDuration(item.duration)}</div>
+                <div class="stat-label">Duration</div>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="${chartId}"></canvas>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      data.forEach((item, idx) => {
+        const chartId = `chart-${idx}`;
+        const speedKey = isBoat ? 'sog' : 'speed';
+        const history = item.speedHistory || [];
+        
+        if (history.length < 2) return;
+        
+        const labels = history.map(p => {
+          const d = new Date(p.ts);
+          return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        });
+        const speeds = history.map(p => p[speedKey] || 0);
+        
+        const ctx = document.getElementById(chartId);
+        if (ctx) {
+          new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Speed',
+                data: speeds,
+                borderColor: isBoat ? '#ff9500' : '#667eea',
+                backgroundColor: isBoat ? 'rgba(255,149,0,0.1)' : 'rgba(102,126,234,0.1)',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 0
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { display: false },
+                y: { beginAtZero: true, display: true, grid: { display: false } }
+              }
+            }
+          });
+        }
+      });
+    }
+    
+    loadAnalytics();
+    setInterval(loadAnalytics, 10000);
+  </script>
+</body>
+</html>

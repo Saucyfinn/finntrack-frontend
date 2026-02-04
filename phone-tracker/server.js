@@ -15,6 +15,11 @@ const connectedPhones = new Map();
 const connectedBoats = new Map();
 const viewers = new Set();
 
+const boatHistory = new Map();
+const phoneHistory = new Map();
+const MAX_HISTORY_POINTS = 1000;
+const HISTORY_RETENTION_MS = 3600000;
+
 const races = [
   { raceId: 'race-2026-1', title: 'Australian Nationals 2026 - Race 1', series: 'aus-nationals-2026' },
   { raceId: 'race-2026-2', title: 'Australian Nationals 2026 - Race 2', series: 'aus-nationals-2026' },
@@ -40,6 +45,28 @@ const fleet = {
   ]
 };
 
+function addBoatHistoryPoint(boatId, point) {
+  if (!boatHistory.has(boatId)) {
+    boatHistory.set(boatId, []);
+  }
+  const history = boatHistory.get(boatId);
+  history.push(point);
+  if (history.length > MAX_HISTORY_POINTS) {
+    history.shift();
+  }
+}
+
+function addPhoneHistoryPoint(deviceId, point) {
+  if (!phoneHistory.has(deviceId)) {
+    phoneHistory.set(deviceId, []);
+  }
+  const history = phoneHistory.get(deviceId);
+  history.push(point);
+  if (history.length > MAX_HISTORY_POINTS) {
+    history.shift();
+  }
+}
+
 app.get('/race/list', (req, res) => {
   res.json({ races, series });
 });
@@ -63,6 +90,7 @@ app.post('/api/update', (req, res) => {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   
+  const timestamp = Date.now();
   const phoneData = {
     deviceId,
     name: name || deviceId,
@@ -71,10 +99,14 @@ app.post('/api/update', (req, res) => {
     speed: speed || 0,
     heading: heading || 0,
     accuracy: accuracy || 0,
-    lastUpdate: Date.now()
+    lastUpdate: timestamp
   };
   
   connectedPhones.set(deviceId, phoneData);
+  
+  addPhoneHistoryPoint(deviceId, {
+    lat, lon, speed: speed || 0, heading: heading || 0, ts: timestamp, name: phoneData.name
+  });
   
   broadcastToViewers({
     type: 'phone_update',
@@ -118,6 +150,7 @@ app.post('/update', (req, res) => {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   
+  const timestamp = ts || Date.now();
   const boatData = {
     boatId,
     raceId: raceId || 'training',
@@ -126,11 +159,15 @@ app.post('/update', (req, res) => {
     lon,
     sog: sog || 0,
     cog: cog || 0,
-    timestamp: ts || Date.now(),
+    timestamp,
     lastUpdate: Date.now()
   };
   
   connectedBoats.set(boatId, boatData);
+  
+  addBoatHistoryPoint(boatId, {
+    lat, lon, sog: sog || 0, cog: cog || 0, ts: timestamp, raceId: boatData.raceId, name: boatData.name
+  });
   
   broadcastToViewers({
     type: 'boat_update',
@@ -171,6 +208,122 @@ app.delete('/boat/:boatId', (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/history/boats', (req, res) => {
+  const raceId = req.query.raceId;
+  const since = parseInt(req.query.since) || 0;
+  const result = {};
+  
+  for (const [boatId, history] of boatHistory) {
+    const filtered = history.filter(p => {
+      if (raceId && p.raceId !== raceId) return false;
+      if (since && p.ts < since) return false;
+      return true;
+    });
+    if (filtered.length > 0) {
+      result[boatId] = filtered;
+    }
+  }
+  
+  res.json({ history: result });
+});
+
+app.get('/api/history/phones', (req, res) => {
+  const since = parseInt(req.query.since) || 0;
+  const result = {};
+  
+  for (const [deviceId, history] of phoneHistory) {
+    const filtered = history.filter(p => !since || p.ts >= since);
+    if (filtered.length > 0) {
+      result[deviceId] = filtered;
+    }
+  }
+  
+  res.json({ history: result });
+});
+
+app.get('/api/analytics/boats', (req, res) => {
+  const raceId = req.query.raceId;
+  const analytics = [];
+  
+  for (const [boatId, history] of boatHistory) {
+    const filtered = raceId ? history.filter(p => p.raceId === raceId) : history;
+    if (filtered.length < 2) continue;
+    
+    const speeds = filtered.map(p => p.sog).filter(s => s > 0);
+    const avgSpeed = speeds.length > 0 ? speeds.reduce((a,b) => a+b, 0) / speeds.length : 0;
+    const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 0;
+    
+    let totalDistance = 0;
+    for (let i = 1; i < filtered.length; i++) {
+      totalDistance += haversine(
+        filtered[i-1].lat, filtered[i-1].lon,
+        filtered[i].lat, filtered[i].lon
+      );
+    }
+    
+    const duration = (filtered[filtered.length-1].ts - filtered[0].ts) / 1000;
+    
+    analytics.push({
+      boatId,
+      name: filtered[0].name || boatId,
+      points: filtered.length,
+      avgSpeed: Math.round(avgSpeed * 10) / 10,
+      maxSpeed: Math.round(maxSpeed * 10) / 10,
+      distance: Math.round(totalDistance * 100) / 100,
+      duration: Math.round(duration),
+      speedHistory: filtered.map(p => ({ ts: p.ts, sog: p.sog }))
+    });
+  }
+  
+  res.json({ analytics });
+});
+
+app.get('/api/analytics/phones', (req, res) => {
+  const analytics = [];
+  
+  for (const [deviceId, history] of phoneHistory) {
+    if (history.length < 2) continue;
+    
+    const speeds = history.map(p => p.speed).filter(s => s > 0);
+    const avgSpeed = speeds.length > 0 ? speeds.reduce((a,b) => a+b, 0) / speeds.length : 0;
+    const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 0;
+    
+    let totalDistance = 0;
+    for (let i = 1; i < history.length; i++) {
+      totalDistance += haversine(
+        history[i-1].lat, history[i-1].lon,
+        history[i].lat, history[i].lon
+      );
+    }
+    
+    const duration = (history[history.length-1].ts - history[0].ts) / 1000;
+    
+    analytics.push({
+      deviceId,
+      name: history[0].name || deviceId,
+      points: history.length,
+      avgSpeed: Math.round(avgSpeed * 100) / 100,
+      maxSpeed: Math.round(maxSpeed * 100) / 100,
+      distance: Math.round(totalDistance * 100) / 100,
+      duration: Math.round(duration),
+      speedHistory: history.map(p => ({ ts: p.ts, speed: p.speed }))
+    });
+  }
+  
+  res.json({ analytics });
+});
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
 const WebSocket = require('ws');
 const wss = new WebSocket.Server({ server, path: '/ws' });
 
@@ -209,6 +362,24 @@ setInterval(() => {
     if (now - boat.lastUpdate > 300000) {
       connectedBoats.delete(id);
       broadcastToViewers({ type: 'boat_disconnect', boatId: id });
+    }
+  }
+  
+  const cutoff = now - HISTORY_RETENTION_MS;
+  for (const [id, history] of boatHistory) {
+    const filtered = history.filter(p => p.ts >= cutoff);
+    if (filtered.length === 0) {
+      boatHistory.delete(id);
+    } else {
+      boatHistory.set(id, filtered);
+    }
+  }
+  for (const [id, history] of phoneHistory) {
+    const filtered = history.filter(p => p.ts >= cutoff);
+    if (filtered.length === 0) {
+      phoneHistory.delete(id);
+    } else {
+      phoneHistory.set(id, filtered);
     }
   }
 }, 10000);

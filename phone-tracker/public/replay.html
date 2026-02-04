@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinnTrack - Replay</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    #map { position: fixed; top: 0; left: 0; right: 0; bottom: 0; }
+    .header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+      color: white;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 1000;
+    }
+    .brand { font-size: 20px; font-weight: 700; }
+    .controls {
+      position: fixed;
+      bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      z-index: 1000;
+      width: 90%;
+      max-width: 600px;
+    }
+    .time-display {
+      text-align: center;
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #1e3a5f;
+    }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .slider {
+      flex: 1;
+      height: 8px;
+      -webkit-appearance: none;
+      background: #e0e0e0;
+      border-radius: 4px;
+      outline: none;
+    }
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      background: #1e3a5f;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    .time-label { font-size: 12px; color: #666; min-width: 60px; }
+    .btn-row { display: flex; gap: 10px; justify-content: center; }
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-play { background: #34c759; color: white; }
+    .btn-pause { background: #ff9500; color: white; }
+    .btn-reset { background: #e0e0e0; color: #333; }
+    .speed-control {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .speed-btn {
+      width: 40px; height: 40px;
+      border: 2px solid #1e3a5f;
+      background: white;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .speed-btn.active { background: #1e3a5f; color: white; }
+    .sidebar {
+      position: fixed;
+      top: 55px; right: 10px;
+      width: 280px;
+      max-height: calc(100vh - 200px);
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      z-index: 1000;
+      overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid #eee;
+      font-weight: 600;
+      background: #f8f9fa;
+    }
+    .list { overflow-y: auto; max-height: 300px; }
+    .item { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; }
+    .item-name { font-weight: 600; margin-bottom: 4px; }
+    .item-info { font-size: 12px; color: #666; }
+    .empty-state { padding: 40px 20px; text-align: center; color: #999; }
+    .home-link {
+      display: block;
+      padding: 16px;
+      text-align: center;
+      background: #1e3a5f;
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    @media (max-width: 600px) {
+      .sidebar { display: none; }
+      .controls { bottom: 10px; padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  
+  <div class="header">
+    <div class="brand">⛵ FinnTrack Replay</div>
+  </div>
+  
+  <div class="sidebar">
+    <div class="sidebar-header">Tracks</div>
+    <div class="list" id="trackList">
+      <div class="empty-state">No tracking data yet</div>
+    </div>
+    <a href="/" class="home-link">← Back to Home</a>
+  </div>
+  
+  <div class="controls">
+    <div class="time-display" id="timeDisplay">--:--:--</div>
+    <div class="slider-row">
+      <span class="time-label" id="startTime">--:--</span>
+      <input type="range" class="slider" id="timeSlider" min="0" max="100" value="0">
+      <span class="time-label" id="endTime">--:--</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-play" id="playBtn">Play</button>
+      <button class="btn btn-reset" id="resetBtn">Reset</button>
+    </div>
+    <div class="speed-control">
+      <span>Speed:</span>
+      <button class="speed-btn active" data-speed="1">1x</button>
+      <button class="speed-btn" data-speed="2">2x</button>
+      <button class="speed-btn" data-speed="5">5x</button>
+      <button class="speed-btn" data-speed="10">10x</button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([-27.45, 153.05], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+    
+    const markers = new Map();
+    const trails = new Map();
+    let allData = { boats: {}, phones: {} };
+    let timeRange = { start: 0, end: 0 };
+    let currentTime = 0;
+    let isPlaying = false;
+    let playbackSpeed = 1;
+    let animationFrame = null;
+    
+    const timeSlider = document.getElementById('timeSlider');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const startTimeLabel = document.getElementById('startTime');
+    const endTimeLabel = document.getElementById('endTime');
+    const playBtn = document.getElementById('playBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const trackList = document.getElementById('trackList');
+    
+    function createBoatIcon() {
+      return L.divIcon({
+        className: 'boat-marker',
+        html: `<div style="width:32px;height:32px;background:#ff9500;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:14px;">⛵</div>`,
+        iconSize: [32, 32], iconAnchor: [16, 16]
+      });
+    }
+    
+    function createPhoneIcon() {
+      return L.divIcon({
+        className: 'phone-marker',
+        html: `<div style="width:32px;height:32px;background:#667eea;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:14px;">📱</div>`,
+        iconSize: [32, 32], iconAnchor: [16, 16]
+      });
+    }
+    
+    function formatTime(ts) {
+      const d = new Date(ts);
+      return d.toLocaleTimeString();
+    }
+    
+    function formatDuration(ms) {
+      const s = Math.floor(ms / 1000);
+      const m = Math.floor(s / 60);
+      const h = Math.floor(m / 60);
+      return `${String(h).padStart(2,'0')}:${String(m%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+    }
+    
+    async function loadHistory() {
+      try {
+        const [boatsRes, phonesRes] = await Promise.all([
+          fetch('/api/history/boats'),
+          fetch('/api/history/phones')
+        ]);
+        const boatsData = await boatsRes.json();
+        const phonesData = await phonesRes.json();
+        
+        allData.boats = boatsData.history || {};
+        allData.phones = phonesData.history || {};
+        
+        let minTime = Infinity, maxTime = 0;
+        
+        Object.values(allData.boats).forEach(history => {
+          history.forEach(p => {
+            if (p.ts < minTime) minTime = p.ts;
+            if (p.ts > maxTime) maxTime = p.ts;
+          });
+        });
+        
+        Object.values(allData.phones).forEach(history => {
+          history.forEach(p => {
+            if (p.ts < minTime) minTime = p.ts;
+            if (p.ts > maxTime) maxTime = p.ts;
+          });
+        });
+        
+        if (minTime === Infinity) {
+          trackList.innerHTML = '<div class="empty-state">No tracking data yet.<br>Start tracking to see replay.</div>';
+          return;
+        }
+        
+        timeRange = { start: minTime, end: maxTime };
+        currentTime = minTime;
+        
+        startTimeLabel.textContent = formatTime(minTime);
+        endTimeLabel.textContent = formatTime(maxTime);
+        timeDisplay.textContent = formatTime(minTime);
+        
+        updateTrackList();
+        updateMap();
+        fitBounds();
+        
+      } catch (e) {
+        console.error('Failed to load history', e);
+      }
+    }
+    
+    function updateTrackList() {
+      const items = [];
+      
+      Object.entries(allData.boats).forEach(([id, history]) => {
+        items.push({
+          type: 'boat',
+          id,
+          name: history[0]?.name || id,
+          points: history.length
+        });
+      });
+      
+      Object.entries(allData.phones).forEach(([id, history]) => {
+        items.push({
+          type: 'phone',
+          id,
+          name: history[0]?.name || id,
+          points: history.length
+        });
+      });
+      
+      if (items.length === 0) {
+        trackList.innerHTML = '<div class="empty-state">No tracking data yet</div>';
+        return;
+      }
+      
+      trackList.innerHTML = items.map(item => `
+        <div class="item">
+          <div class="item-name">${item.type === 'boat' ? '⛵' : '📱'} ${item.name}</div>
+          <div class="item-info">${item.points} points</div>
+        </div>
+      `).join('');
+    }
+    
+    function getPositionAtTime(history, time) {
+      if (!history || history.length === 0) return null;
+      
+      let before = null, after = null;
+      for (const p of history) {
+        if (p.ts <= time) before = p;
+        if (p.ts >= time && !after) after = p;
+      }
+      
+      if (!before) return after;
+      if (!after) return before;
+      if (before === after) return before;
+      
+      const ratio = (time - before.ts) / (after.ts - before.ts);
+      return {
+        lat: before.lat + (after.lat - before.lat) * ratio,
+        lon: before.lon + (after.lon - before.lon) * ratio,
+        sog: before.sog,
+        speed: before.speed,
+        name: before.name
+      };
+    }
+    
+    function getTrailUpToTime(history, time) {
+      if (!history) return [];
+      return history.filter(p => p.ts <= time).map(p => [p.lat, p.lon]);
+    }
+    
+    function updateMap() {
+      Object.entries(allData.boats).forEach(([id, history]) => {
+        const pos = getPositionAtTime(history, currentTime);
+        const trail = getTrailUpToTime(history, currentTime);
+        
+        if (pos) {
+          if (markers.has('boat-' + id)) {
+            markers.get('boat-' + id).setLatLng([pos.lat, pos.lon]);
+          } else {
+            const marker = L.marker([pos.lat, pos.lon], { icon: createBoatIcon() }).addTo(map);
+            marker.bindPopup(`<b>${pos.name || id}</b>`);
+            markers.set('boat-' + id, marker);
+          }
+          
+          if (trails.has('boat-' + id)) {
+            trails.get('boat-' + id).setLatLngs(trail);
+          } else {
+            const polyline = L.polyline(trail, { color: '#ff9500', weight: 3, opacity: 0.7 }).addTo(map);
+            trails.set('boat-' + id, polyline);
+          }
+        }
+      });
+      
+      Object.entries(allData.phones).forEach(([id, history]) => {
+        const pos = getPositionAtTime(history, currentTime);
+        const trail = getTrailUpToTime(history, currentTime);
+        
+        if (pos) {
+          if (markers.has('phone-' + id)) {
+            markers.get('phone-' + id).setLatLng([pos.lat, pos.lon]);
+          } else {
+            const marker = L.marker([pos.lat, pos.lon], { icon: createPhoneIcon() }).addTo(map);
+            marker.bindPopup(`<b>${pos.name || id}</b>`);
+            markers.set('phone-' + id, marker);
+          }
+          
+          if (trails.has('phone-' + id)) {
+            trails.get('phone-' + id).setLatLngs(trail);
+          } else {
+            const polyline = L.polyline(trail, { color: '#667eea', weight: 3, opacity: 0.7 }).addTo(map);
+            trails.set('phone-' + id, polyline);
+          }
+        }
+      });
+      
+      timeDisplay.textContent = formatTime(currentTime);
+      const progress = timeRange.end > timeRange.start 
+        ? (currentTime - timeRange.start) / (timeRange.end - timeRange.start) * 100 
+        : 0;
+      timeSlider.value = progress;
+    }
+    
+    function fitBounds() {
+      const bounds = [];
+      Object.values(allData.boats).forEach(history => {
+        history.forEach(p => bounds.push([p.lat, p.lon]));
+      });
+      Object.values(allData.phones).forEach(history => {
+        history.forEach(p => bounds.push([p.lat, p.lon]));
+      });
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+    }
+    
+    let lastFrameTime = 0;
+    function animate(timestamp) {
+      if (!isPlaying) return;
+      
+      const elapsed = timestamp - lastFrameTime;
+      lastFrameTime = timestamp;
+      
+      currentTime += elapsed * playbackSpeed;
+      
+      if (currentTime >= timeRange.end) {
+        currentTime = timeRange.end;
+        isPlaying = false;
+        playBtn.textContent = 'Play';
+        playBtn.className = 'btn btn-play';
+      }
+      
+      updateMap();
+      
+      if (isPlaying) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    }
+    
+    playBtn.addEventListener('click', () => {
+      if (isPlaying) {
+        isPlaying = false;
+        playBtn.textContent = 'Play';
+        playBtn.className = 'btn btn-play';
+        if (animationFrame) cancelAnimationFrame(animationFrame);
+      } else {
+        if (currentTime >= timeRange.end) {
+          currentTime = timeRange.start;
+        }
+        isPlaying = true;
+        playBtn.textContent = 'Pause';
+        playBtn.className = 'btn btn-pause';
+        lastFrameTime = performance.now();
+        animationFrame = requestAnimationFrame(animate);
+      }
+    });
+    
+    resetBtn.addEventListener('click', () => {
+      isPlaying = false;
+      playBtn.textContent = 'Play';
+      playBtn.className = 'btn btn-play';
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      currentTime = timeRange.start;
+      updateMap();
+    });
+    
+    timeSlider.addEventListener('input', () => {
+      const progress = timeSlider.value / 100;
+      currentTime = timeRange.start + (timeRange.end - timeRange.start) * progress;
+      updateMap();
+    });
+    
+    document.querySelectorAll('.speed-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        playbackSpeed = parseInt(btn.dataset.speed);
+      });
+    });
+    
+    loadHistory();
+    setInterval(loadHistory, 10000);
+  </script>
+</body>
+</html>
