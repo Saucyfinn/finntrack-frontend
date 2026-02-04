@@ -516,8 +516,7 @@
         const msg = JSON.parse(e.data);
         
         if (msg.type === 'init') {
-          (msg.boats || msg.devices || []).forEach(updateBoat);
-          (msg.phones || []).forEach(updatePhone);
+          (msg.devices || []).forEach(updateBoat);
         } else if (msg.type === 'boat_update') {
           updateBoat(msg.boat);
         } else if (msg.type === 'device_update') {
@@ -544,13 +543,11 @@
     
     async function loadInitial() {
       try {
-        const [boatsRes, phonesRes, historyRes] = await Promise.all([
-          fetch('/boats'),
-          fetch('/api/phones'),
+        const [devicesRes, historyRes] = await Promise.all([
+          fetch('/api/devices'),
           fetch('/api/history/devices')
         ]);
-        const boatsData = await boatsRes.json();
-        const phonesData = await phonesRes.json();
+        const devicesData = await devicesRes.json();
         const historyData = await historyRes.json();
         
         const devices = historyData.devices || historyData;
@@ -576,8 +573,7 @@
           setTimeout(fitAllBoats, 500);
         }
         
-        (boatsData.boats || []).forEach(updateBoat);
-        (phonesData.phones || []).forEach(updatePhone);
+        (devicesData.devices || []).forEach(updateBoat);
       } catch (e) {
         console.error('Failed to load initial data', e);
       }

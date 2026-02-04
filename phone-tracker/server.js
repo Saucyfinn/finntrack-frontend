@@ -609,9 +609,7 @@ wss.on('connection', (ws, req) => {
   viewers.add(ws);
   
   const devices = Array.from(connectedDevices.values());
-  const phones = devices.filter(d => d.deviceType === 'phone');
-  const boats = devices;
-  ws.send(JSON.stringify({ type: 'init', phones, boats, devices }));
+  ws.send(JSON.stringify({ type: 'init', devices }));
   
   ws.on('close', () => {
     viewers.delete(ws);
