@@ -231,47 +231,67 @@
       });
     });
     
-    function createBoatIcon() {
+    const nationalColors = {
+      'AUS': { bg: '#FFD700', text: '#000' },
+      'NZL': { bg: '#000000', text: '#fff' },
+      'GBR': { bg: '#012169', text: '#fff' },
+      'USA': { bg: '#3C3B6E', text: '#fff' },
+      'GER': { bg: '#000000', text: '#FFCC00' },
+      'FRA': { bg: '#0055A4', text: '#fff' },
+      'ITA': { bg: '#009246', text: '#fff' },
+      'ESP': { bg: '#AA151B', text: '#F1BF00' },
+      'NED': { bg: '#FF6600', text: '#fff' },
+      'SWE': { bg: '#006AA7', text: '#FECC00' },
+      'DEN': { bg: '#C8102E', text: '#fff' },
+      'CAN': { bg: '#FF0000', text: '#fff' },
+      'JPN': { bg: '#BC002D', text: '#fff' },
+      'POL': { bg: '#DC143C', text: '#fff' },
+      'FIN': { bg: '#003580', text: '#fff' },
+      'default': { bg: '#1e3a5f', text: '#fff' }
+    };
+    
+    function getCountryFromSail(sailNum) {
+      if (!sailNum) return 'default';
+      const match = sailNum.match(/^([A-Z]{2,3})/i);
+      return match ? match[1].toUpperCase() : 'default';
+    }
+    
+    function createBoatIcon(sailNum) {
+      const country = getCountryFromSail(sailNum);
+      const colors = nationalColors[country] || nationalColors['default'];
+      const displayNum = sailNum ? sailNum.replace(/^[A-Z]{2,3}\s*/i, '').trim() : '?';
+      
       return L.divIcon({
         className: 'boat-marker',
-        html: `<div style="
-          width: 32px; height: 32px;
-          background: #ff9500;
-          border: 3px solid white;
-          border-radius: 50%;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          display: flex; align-items: center; justify-content: center;
-          font-size: 14px;
-        ">⛵</div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
+        html: `<div style="position: relative; width: 44px; height: 52px;">
+          <svg viewBox="0 0 44 52" width="44" height="52">
+            <path d="M22 2 L40 18 L38 42 Q22 50 6 42 L4 18 Z" 
+                  fill="${colors.bg}" stroke="white" stroke-width="2"/>
+            <polygon points="22,8 32,20 22,18 12,20" fill="white" opacity="0.9"/>
+          </svg>
+          <div style="position: absolute; bottom: 8px; left: 0; right: 0;
+            text-align: center; font-size: 11px; font-weight: bold;
+            color: ${colors.text}; text-shadow: 0 0 2px rgba(255,255,255,0.5);">${displayNum}</div>
+        </div>`,
+        iconSize: [44, 52],
+        iconAnchor: [22, 52]
       });
     }
     
-    function createPhoneIcon() {
-      return L.divIcon({
-        className: 'phone-marker',
-        html: `<div style="
-          width: 32px; height: 32px;
-          background: #667eea;
-          border: 3px solid white;
-          border-radius: 50%;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          display: flex; align-items: center; justify-content: center;
-          font-size: 14px;
-        ">📱</div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
-      });
+    function createPhoneIcon(sailNum) {
+      return createBoatIcon(sailNum);
     }
     
     function updateBoat(boat) {
       boats.set(boat.boatId, boat);
+      const sailNum = boat.boatId || boat.name || '';
       
       if (boatMarkers.has(boat.boatId)) {
-        boatMarkers.get(boat.boatId).setLatLng([boat.lat, boat.lon]);
+        const marker = boatMarkers.get(boat.boatId);
+        marker.setLatLng([boat.lat, boat.lon]);
+        marker.setIcon(createBoatIcon(sailNum));
       } else {
-        const marker = L.marker([boat.lat, boat.lon], { icon: createBoatIcon() })
+        const marker = L.marker([boat.lat, boat.lon], { icon: createBoatIcon(sailNum) })
           .addTo(map)
           .bindPopup(`<b>${boat.name || boat.boatId}</b><br>Speed: ${(boat.sog || 0).toFixed(1)} kn`);
         boatMarkers.set(boat.boatId, marker);
@@ -283,13 +303,16 @@
     
     function updatePhone(phone) {
       phones.set(phone.deviceId, phone);
+      const sailNum = phone.name || phone.deviceId || '';
       
       if (phoneMarkers.has(phone.deviceId)) {
-        phoneMarkers.get(phone.deviceId).setLatLng([phone.lat, phone.lon]);
+        const marker = phoneMarkers.get(phone.deviceId);
+        marker.setLatLng([phone.lat, phone.lon]);
+        marker.setIcon(createPhoneIcon(sailNum));
       } else {
-        const marker = L.marker([phone.lat, phone.lon], { icon: createPhoneIcon() })
+        const marker = L.marker([phone.lat, phone.lon], { icon: createPhoneIcon(sailNum) })
           .addTo(map)
-          .bindPopup(`<b>${phone.name}</b><br>Speed: ${((phone.speed || 0) * 3.6).toFixed(1)} km/h`);
+          .bindPopup(`<b>${phone.name}</b><br>Speed: ${((phone.speed || 0) * 1.94384).toFixed(1)} kn`);
         phoneMarkers.set(phone.deviceId, marker);
       }
       
