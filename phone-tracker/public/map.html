@@ -290,19 +290,19 @@
       
       return L.divIcon({
         className: 'boat-marker',
-        html: `<div style="position: relative; width: 44px; height: 52px; transform: rotate(${rotation}deg); transform-origin: center center;">
-          <svg viewBox="0 0 44 52" width="44" height="52">
+        html: `<div style="position: relative; width: 24px; height: 28px; transform: rotate(${rotation}deg); transform-origin: center center;">
+          <svg viewBox="0 0 44 52" width="24" height="28">
             <path d="M22 2 L40 18 L38 42 Q22 50 6 42 L4 18 Z" 
-                  fill="${colors.bg}" stroke="white" stroke-width="2"/>
+                  fill="${colors.bg}" stroke="white" stroke-width="3"/>
             <polygon points="22,8 32,20 22,18 12,20" fill="white" opacity="0.9"/>
           </svg>
-          <div style="position: absolute; bottom: 8px; left: 0; right: 0;
-            text-align: center; font-size: 11px; font-weight: bold;
-            color: ${colors.text}; text-shadow: 0 0 2px rgba(255,255,255,0.5);
+          <div style="position: absolute; bottom: 3px; left: 0; right: 0;
+            text-align: center; font-size: 8px; font-weight: bold;
+            color: ${colors.text}; text-shadow: 0 0 1px rgba(255,255,255,0.8);
             transform: rotate(${-rotation}deg);">${displayNum}</div>
         </div>`,
-        iconSize: [44, 52],
-        iconAnchor: [22, 26]
+        iconSize: [24, 28],
+        iconAnchor: [12, 14]
       });
     }
     
