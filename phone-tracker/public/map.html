@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Map</title>
+  <title>FinnTrack - Live Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -22,73 +22,108 @@
       top: 0;
       left: 0;
       right: 0;
-      background: white;
+      background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+      color: white;
       padding: 12px 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
       z-index: 1000;
     }
     .brand {
       font-size: 20px;
       font-weight: 700;
-      color: #667eea;
     }
     .status {
       display: flex;
-      align-items: center;
-      gap: 8px;
+      gap: 20px;
+      font-size: 14px;
     }
-    .status-dot {
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dot {
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      background: #34c759;
     }
-    .status-dot.disconnected { background: #ff3b30; }
-    .phone-count {
-      font-weight: 600;
-      color: #333;
-    }
+    .dot-boat { background: #ff9500; }
+    .dot-phone { background: #667eea; }
+    .dot-ws { background: #34c759; }
+    .dot-ws.disconnected { background: #ff3b30; }
     .sidebar {
       position: fixed;
-      top: 60px;
+      top: 55px;
       right: 10px;
-      width: 280px;
-      max-height: calc(100vh - 80px);
+      width: 300px;
+      max-height: calc(100vh - 75px);
       background: white;
       border-radius: 12px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.15);
       z-index: 1000;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
     .sidebar-header {
       padding: 16px;
       border-bottom: 1px solid #eee;
       font-weight: 600;
+      background: #f8f9fa;
     }
-    .phone-list {
-      max-height: 400px;
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #eee;
+    }
+    .tab {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      cursor: pointer;
+      font-size: 14px;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab.active {
+      border-bottom-color: #1e3a5f;
+      color: #1e3a5f;
+      font-weight: 600;
+    }
+    .list {
+      flex: 1;
       overflow-y: auto;
+      max-height: 350px;
     }
-    .phone-item {
+    .item {
       padding: 12px 16px;
       border-bottom: 1px solid #f0f0f0;
       cursor: pointer;
       transition: background 0.2s;
     }
-    .phone-item:hover {
+    .item:hover {
       background: #f8f8f8;
     }
-    .phone-name {
+    .item-name {
       font-weight: 600;
       margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    .phone-info {
+    .item-info {
       font-size: 12px;
       color: #666;
     }
+    .badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .badge-boat { background: #fff3e0; color: #e65100; }
+    .badge-phone { background: #ede7f6; color: #5e35b1; }
     .empty-state {
       padding: 40px 20px;
       text-align: center;
@@ -102,7 +137,7 @@
       display: block;
       padding: 16px;
       text-align: center;
-      background: #667eea;
+      background: #1e3a5f;
       color: white;
       text-decoration: none;
       font-weight: 600;
@@ -113,8 +148,9 @@
         left: 10px;
         top: auto;
         bottom: 10px;
-        max-height: 200px;
+        max-height: 250px;
       }
+      .status { display: none; }
     }
   </style>
 </head>
@@ -122,20 +158,33 @@
   <div id="map"></div>
   
   <div class="header">
-    <div class="brand">📍 Phone Tracker</div>
+    <div class="brand">⛵ FinnTrack</div>
     <div class="status">
-      <div class="status-dot" id="statusDot"></div>
-      <span class="phone-count"><span id="phoneCount">0</span> phones connected</span>
+      <div class="status-item">
+        <div class="dot dot-boat"></div>
+        <span><span id="boatCount">0</span> boats</span>
+      </div>
+      <div class="status-item">
+        <div class="dot dot-phone"></div>
+        <span><span id="phoneCount">0</span> phones</span>
+      </div>
+      <div class="status-item">
+        <div class="dot dot-ws" id="wsDot"></div>
+        <span>Live</span>
+      </div>
     </div>
   </div>
   
   <div class="sidebar">
-    <div class="sidebar-header">Connected Phones</div>
-    <div class="phone-list" id="phoneList">
+    <div class="tabs">
+      <div class="tab active" data-tab="all">All</div>
+      <div class="tab" data-tab="boats">Boats</div>
+      <div class="tab" data-tab="phones">Phones</div>
+    </div>
+    <div class="list" id="itemList">
       <div class="empty-state">
-        <div class="empty-icon">📱</div>
-        <div>No phones connected yet</div>
-        <div style="font-size:12px;margin-top:8px;">Open the Connect page on your phone</div>
+        <div class="empty-icon">📡</div>
+        <div>No devices connected</div>
       </div>
     </div>
     <a href="/" class="home-link">← Back to Home</a>
@@ -143,164 +192,219 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const map = L.map('map').setView([0, 0], 2);
+    const map = L.map('map').setView([-27.45, 153.05], 12);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
+      attribution: '© OpenStreetMap'
     }).addTo(map);
     
-    const markers = new Map();
-    const phoneList = document.getElementById('phoneList');
-    const phoneCount = document.getElementById('phoneCount');
-    const statusDot = document.getElementById('statusDot');
+    const boatMarkers = new Map();
+    const phoneMarkers = new Map();
+    const boats = new Map();
+    const phones = new Map();
     
-    function createPhoneIcon(color = '#667eea') {
+    const itemList = document.getElementById('itemList');
+    const boatCount = document.getElementById('boatCount');
+    const phoneCount = document.getElementById('phoneCount');
+    const wsDot = document.getElementById('wsDot');
+    
+    let activeTab = 'all';
+    
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        activeTab = tab.dataset.tab;
+        updateList();
+      });
+    });
+    
+    function createBoatIcon() {
       return L.divIcon({
-        className: 'phone-marker',
+        className: 'boat-marker',
         html: `<div style="
-          width: 36px;
-          height: 36px;
-          background: ${color};
+          width: 32px; height: 32px;
+          background: #ff9500;
           border: 3px solid white;
           border-radius: 50%;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 16px;
-        ">📱</div>`,
-        iconSize: [36, 36],
-        iconAnchor: [18, 18]
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 14px;
+        ">⛵</div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
       });
     }
     
-    function updatePhone(phone) {
-      const { deviceId, name, lat, lon, speed, lastUpdate } = phone;
-      
-      if (markers.has(deviceId)) {
-        const marker = markers.get(deviceId);
-        marker.setLatLng([lat, lon]);
-        marker.setPopupContent(createPopup(phone));
-      } else {
-        const marker = L.marker([lat, lon], { icon: createPhoneIcon() })
-          .addTo(map)
-          .bindPopup(createPopup(phone));
-        markers.set(deviceId, marker);
-        
-        if (markers.size === 1) {
-          map.setView([lat, lon], 15);
-        }
-      }
-      
-      updatePhoneList();
+    function createPhoneIcon() {
+      return L.divIcon({
+        className: 'phone-marker',
+        html: `<div style="
+          width: 32px; height: 32px;
+          background: #667eea;
+          border: 3px solid white;
+          border-radius: 50%;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 14px;
+        ">📱</div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
     }
     
-    function createPopup(phone) {
-      const speed = phone.speed ? (phone.speed * 3.6).toFixed(1) + ' km/h' : 'Stationary';
-      const updated = new Date(phone.lastUpdate).toLocaleTimeString();
-      return `
-        <strong>${phone.name}</strong><br>
-        Speed: ${speed}<br>
-        Updated: ${updated}
-      `;
+    function updateBoat(boat) {
+      boats.set(boat.boatId, boat);
+      
+      if (boatMarkers.has(boat.boatId)) {
+        boatMarkers.get(boat.boatId).setLatLng([boat.lat, boat.lon]);
+      } else {
+        const marker = L.marker([boat.lat, boat.lon], { icon: createBoatIcon() })
+          .addTo(map)
+          .bindPopup(`<b>${boat.name || boat.boatId}</b><br>Speed: ${(boat.sog || 0).toFixed(1)} kn`);
+        boatMarkers.set(boat.boatId, marker);
+      }
+      
+      updateCounts();
+      updateList();
+    }
+    
+    function updatePhone(phone) {
+      phones.set(phone.deviceId, phone);
+      
+      if (phoneMarkers.has(phone.deviceId)) {
+        phoneMarkers.get(phone.deviceId).setLatLng([phone.lat, phone.lon]);
+      } else {
+        const marker = L.marker([phone.lat, phone.lon], { icon: createPhoneIcon() })
+          .addTo(map)
+          .bindPopup(`<b>${phone.name}</b><br>Speed: ${((phone.speed || 0) * 3.6).toFixed(1)} km/h`);
+        phoneMarkers.set(phone.deviceId, marker);
+      }
+      
+      updateCounts();
+      updateList();
+    }
+    
+    function removeBoat(boatId) {
+      boats.delete(boatId);
+      if (boatMarkers.has(boatId)) {
+        map.removeLayer(boatMarkers.get(boatId));
+        boatMarkers.delete(boatId);
+      }
+      updateCounts();
+      updateList();
     }
     
     function removePhone(deviceId) {
-      if (markers.has(deviceId)) {
-        map.removeLayer(markers.get(deviceId));
-        markers.delete(deviceId);
+      phones.delete(deviceId);
+      if (phoneMarkers.has(deviceId)) {
+        map.removeLayer(phoneMarkers.get(deviceId));
+        phoneMarkers.delete(deviceId);
       }
-      updatePhoneList();
+      updateCounts();
+      updateList();
     }
     
-    function updatePhoneList() {
-      const phones = Array.from(markers.keys());
-      phoneCount.textContent = phones.length;
+    function updateCounts() {
+      boatCount.textContent = boats.size;
+      phoneCount.textContent = phones.size;
+    }
+    
+    function updateList() {
+      let items = [];
       
-      if (phones.length === 0) {
-        phoneList.innerHTML = `
+      if (activeTab === 'all' || activeTab === 'boats') {
+        boats.forEach((b, id) => {
+          items.push({ type: 'boat', id, name: b.name || b.boatId, info: `${(b.sog || 0).toFixed(1)} kn`, lat: b.lat, lon: b.lon });
+        });
+      }
+      
+      if (activeTab === 'all' || activeTab === 'phones') {
+        phones.forEach((p, id) => {
+          items.push({ type: 'phone', id, name: p.name, info: `${((p.speed || 0) * 3.6).toFixed(1)} km/h`, lat: p.lat, lon: p.lon });
+        });
+      }
+      
+      if (items.length === 0) {
+        itemList.innerHTML = `
           <div class="empty-state">
-            <div class="empty-icon">📱</div>
-            <div>No phones connected yet</div>
-            <div style="font-size:12px;margin-top:8px;">Open the Connect page on your phone</div>
+            <div class="empty-icon">📡</div>
+            <div>No ${activeTab === 'all' ? 'devices' : activeTab} connected</div>
           </div>
         `;
         return;
       }
       
-      phoneList.innerHTML = phones.map(deviceId => {
-        const marker = markers.get(deviceId);
-        const latlng = marker.getLatLng();
-        const popup = marker.getPopup().getContent();
-        const nameMatch = popup.match(/<strong>([^<]+)<\/strong>/);
-        const name = nameMatch ? nameMatch[1] : deviceId;
-        
-        return `
-          <div class="phone-item" onclick="focusPhone('${deviceId}')">
-            <div class="phone-name">📱 ${name}</div>
-            <div class="phone-info">${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</div>
+      itemList.innerHTML = items.map(item => `
+        <div class="item" onclick="focusItem('${item.type}', '${item.id}')">
+          <div class="item-name">
+            ${item.type === 'boat' ? '⛵' : '📱'} ${item.name}
+            <span class="badge badge-${item.type}">${item.type}</span>
           </div>
-        `;
-      }).join('');
+          <div class="item-info">${item.info} | ${item.lat.toFixed(4)}, ${item.lon.toFixed(4)}</div>
+        </div>
+      `).join('');
     }
     
-    window.focusPhone = function(deviceId) {
-      if (markers.has(deviceId)) {
-        const marker = markers.get(deviceId);
+    window.focusItem = function(type, id) {
+      const markers = type === 'boat' ? boatMarkers : phoneMarkers;
+      if (markers.has(id)) {
+        const marker = markers.get(id);
         map.setView(marker.getLatLng(), 16);
         marker.openPopup();
       }
     };
     
     let ws;
-    let reconnectTimeout;
-    
     function connect() {
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(`${protocol}//${location.host}/ws`);
       
       ws.onopen = () => {
-        console.log('WebSocket connected');
-        statusDot.classList.remove('disconnected');
+        wsDot.classList.remove('disconnected');
       };
       
-      ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
         
         if (msg.type === 'init') {
-          msg.phones.forEach(updatePhone);
-        } else if (msg.type === 'update') {
+          (msg.boats || []).forEach(updateBoat);
+          (msg.phones || []).forEach(updatePhone);
+        } else if (msg.type === 'boat_update') {
+          updateBoat(msg.boat);
+        } else if (msg.type === 'phone_update') {
           updatePhone(msg.phone);
-        } else if (msg.type === 'disconnect') {
+        } else if (msg.type === 'boat_disconnect') {
+          removeBoat(msg.boatId);
+        } else if (msg.type === 'phone_disconnect') {
           removePhone(msg.deviceId);
         }
       };
       
       ws.onclose = () => {
-        console.log('WebSocket disconnected, reconnecting...');
-        statusDot.classList.add('disconnected');
-        reconnectTimeout = setTimeout(connect, 2000);
-      };
-      
-      ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-        ws.close();
+        wsDot.classList.add('disconnected');
+        setTimeout(connect, 2000);
       };
     }
     
     connect();
     
-    async function loadInitialPhones() {
+    async function loadInitial() {
       try {
-        const res = await fetch('/api/phones');
-        const data = await res.json();
-        data.phones.forEach(updatePhone);
+        const [boatsRes, phonesRes] = await Promise.all([
+          fetch('/boats'),
+          fetch('/api/phones')
+        ]);
+        const boatsData = await boatsRes.json();
+        const phonesData = await phonesRes.json();
+        (boatsData.boats || []).forEach(updateBoat);
+        (phonesData.phones || []).forEach(updatePhone);
       } catch (e) {
-        console.error('Failed to load phones:', e);
+        console.error('Failed to load initial data');
       }
     }
     
-    loadInitialPhones();
+    loadInitial();
   </script>
 </body>
 </html>

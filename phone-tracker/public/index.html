@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Phone Tracker</title>
+  <title>FinnTrack</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -20,19 +20,24 @@
       background: white;
       border-radius: 20px;
       padding: 40px;
-      max-width: 400px;
+      max-width: 450px;
       width: 100%;
       text-align: center;
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
     }
-    h1 {
-      font-size: 28px;
+    .logo {
+      font-size: 48px;
       margin-bottom: 10px;
-      color: #333;
+    }
+    h1 {
+      font-size: 32px;
+      margin-bottom: 8px;
+      color: #1e3a5f;
     }
     .subtitle {
       color: #666;
       margin-bottom: 30px;
+      font-size: 14px;
     }
     .btn {
       display: block;
@@ -40,10 +45,10 @@
       padding: 16px;
       border: none;
       border-radius: 12px;
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 600;
       cursor: pointer;
-      margin-bottom: 15px;
+      margin-bottom: 12px;
       text-decoration: none;
       transition: transform 0.2s, box-shadow 0.2s;
     }
@@ -52,27 +57,56 @@
       box-shadow: 0 5px 20px rgba(0,0,0,0.2);
     }
     .btn-primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
       color: white;
     }
     .btn-secondary {
       background: #f0f0f0;
       color: #333;
     }
-    .icon {
-      font-size: 60px;
-      margin-bottom: 20px;
+    .btn-phone {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .divider {
+      display: flex;
+      align-items: center;
+      margin: 20px 0;
+      color: #999;
+      font-size: 12px;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #ddd;
+    }
+    .divider span {
+      padding: 0 15px;
+    }
+    .footer {
+      margin-top: 20px;
+      font-size: 11px;
+      color: #999;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="icon">📱</div>
-    <h1>Phone Tracker</h1>
-    <p class="subtitle">Connect your phone to see it on the map</p>
+    <div class="logo">⛵</div>
+    <h1>FinnTrack</h1>
+    <p class="subtitle">Live Fleet Tracking for Sailing Races</p>
     
-    <a href="/connect.html" class="btn btn-primary">Connect My Phone</a>
-    <a href="/map.html" class="btn btn-secondary">View Live Map</a>
+    <a href="/map.html" class="btn btn-primary">View Live Map</a>
+    <a href="/join.html" class="btn btn-secondary">Join Race (Boat)</a>
+    
+    <div class="divider"><span>or track with phone</span></div>
+    
+    <a href="/connect.html" class="btn btn-phone">Connect Phone GPS</a>
+    
+    <div class="footer">
+      Standalone tracking server - works without external APIs
+    </div>
   </div>
 </body>
 </html>
