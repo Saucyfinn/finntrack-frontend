@@ -203,6 +203,7 @@
   
   <div class="map-controls">
     <button class="map-btn" id="toggleSidebar" title="Toggle list">☰</button>
+    <button class="map-btn" id="fitAllBtn" title="Fit all boats">⊕</button>
     <button class="map-btn" id="fullscreenBtn" title="Fullscreen">⛶</button>
   </div>
 
@@ -245,6 +246,16 @@
         mapEl.requestFullscreen().catch(e => console.log(e));
       }
     });
+    
+    document.getElementById('fitAllBtn').addEventListener('click', fitAllBoats);
+    
+    function fitAllBoats() {
+      const allMarkers = [...boatMarkers.values(), ...phoneMarkers.values()];
+      if (allMarkers.length > 0) {
+        const group = L.featureGroup(allMarkers);
+        map.fitBounds(group.getBounds().pad(0.1));
+      }
+    }
     
     const nationalColors = {
       'AUS': { bg: '#FFD700', text: '#000' },
@@ -299,10 +310,14 @@
       return createBoatIcon(sailNum, heading);
     }
     
+    let autoFitDone = false;
+    
     function updateBoat(boat) {
       boats.set(boat.boatId, boat);
-      const sailNum = boat.boatId || boat.name || '';
+      const sailNum = boat.boatId || '';
       const heading = boat.cog || boat.heading || 0;
+      
+      const isNew = !boatMarkers.has(boat.boatId);
       
       if (boatMarkers.has(boat.boatId)) {
         const marker = boatMarkers.get(boat.boatId);
@@ -313,6 +328,11 @@
           .addTo(map)
           .bindPopup(`<b>${boat.name || boat.boatId}</b><br>Speed: ${(boat.sog || 0).toFixed(1)} kn`);
         boatMarkers.set(boat.boatId, marker);
+      }
+      
+      if (isNew && !autoFitDone) {
+        autoFitDone = true;
+        setTimeout(fitAllBoats, 500);
       }
       
       updateCounts();
