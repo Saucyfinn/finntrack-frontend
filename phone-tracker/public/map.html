@@ -292,18 +292,19 @@
       
       return L.divIcon({
         className: 'boat-marker',
-        html: `<div style="position: relative; width: 24px; height: 28px; transform: rotate(${rotation}deg); transform-origin: center center;">
-          <svg viewBox="0 0 44 52" width="24" height="28">
-            <path d="M22 2 L40 18 L38 42 Q22 50 6 42 L4 18 Z" 
-                  fill="${colors.bg}" stroke="white" stroke-width="3"/>
-            <polygon points="22,8 32,20 22,18 12,20" fill="white" opacity="0.9"/>
-          </svg>
-          <div style="position: absolute; bottom: 3px; left: 0; right: 0;
-            text-align: center; font-size: 8px; font-weight: bold;
-            color: ${colors.text}; text-shadow: 0 0 1px rgba(255,255,255,0.8);
-            transform: rotate(${-rotation}deg);">${displayNum}</div>
+        html: `<div style="position: relative; width: 70px; height: 28px;">
+          <div style="position: absolute; left: 0; width: 24px; height: 28px; transform: rotate(${rotation}deg); transform-origin: center center;">
+            <svg viewBox="0 0 44 52" width="24" height="28">
+              <path d="M22 2 L40 18 L38 42 Q22 50 6 42 L4 18 Z" 
+                    fill="${colors.bg}" stroke="white" stroke-width="3"/>
+              <polygon points="22,8 32,20 22,18 12,20" fill="white" opacity="0.9"/>
+            </svg>
+          </div>
+          <div style="position: absolute; left: 26px; top: 6px; white-space: nowrap;
+            font-size: 11px; font-weight: bold; color: #333;
+            text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;">${sailNum || '?'}</div>
         </div>`,
-        iconSize: [24, 28],
+        iconSize: [70, 28],
         iconAnchor: [12, 14]
       });
     }
@@ -363,23 +364,15 @@
     }
     
     function updatePhone(phone) {
-      phones.set(phone.deviceId, phone);
-      const sailNum = phone.name || phone.deviceId || '';
-      const heading = phone.heading || 0;
-      
-      if (phoneMarkers.has(phone.deviceId)) {
-        const marker = phoneMarkers.get(phone.deviceId);
-        marker.setLatLng([phone.lat, phone.lon]);
-        marker.setIcon(createPhoneIcon(sailNum, heading));
-      } else {
-        const marker = L.marker([phone.lat, phone.lon], { icon: createPhoneIcon(sailNum, heading) })
-          .addTo(map)
-          .bindPopup(`<b>${phone.name}</b><br>Speed: ${((phone.speed || 0) * 1.94384).toFixed(1)} kn`);
-        phoneMarkers.set(phone.deviceId, marker);
-      }
-      
-      updateCounts();
-      updateList();
+      const boatId = phone.name || phone.deviceId;
+      updateBoat({
+        boatId: boatId,
+        name: phone.name || phone.deviceId,
+        lat: phone.lat,
+        lon: phone.lon,
+        sog: (phone.speed || 0) * 1.94384,
+        cog: phone.heading || 0
+      });
     }
     
     function removeBoat(boatId) {
@@ -408,7 +401,7 @@
     }
     
     function updateCounts() {
-      boatCount.textContent = boats.size + phones.size;
+      boatCount.textContent = boats.size;
     }
     
     function updateList() {
@@ -513,8 +506,9 @@
         const phonesData = await phonesRes.json();
         const historyData = await historyRes.json();
         
-        if (historyData.devices) {
-          for (const [deviceId, points] of Object.entries(historyData.devices)) {
+        const devices = historyData.devices || historyData;
+        if (devices && typeof devices === 'object') {
+          for (const [deviceId, points] of Object.entries(devices)) {
             if (points.length > 0) {
               const trackPoints = points.map(p => [p.lat, p.lon]);
               boatTrackPoints.set(deviceId, trackPoints);
