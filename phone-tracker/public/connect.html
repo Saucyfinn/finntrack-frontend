@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Connect Phone</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 400px;
+      margin: 0 auto;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      font-size: 24px;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    input {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 16px;
+      margin-bottom: 16px;
+      transition: border-color 0.2s;
+    }
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .btn {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .btn:active {
+      transform: scale(0.98);
+    }
+    .btn-start {
+      background: linear-gradient(135deg, #34c759 0%, #30b350 100%);
+      color: white;
+    }
+    .btn-stop {
+      background: linear-gradient(135deg, #ff3b30 0%, #e63329 100%);
+      color: white;
+      display: none;
+    }
+    .status-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .status-card h2 {
+      font-size: 16px;
+      opacity: 0.9;
+      margin-bottom: 4px;
+    }
+    .status-value {
+      font-size: 32px;
+      font-weight: 700;
+    }
+    .status-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-label {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+    .stat-value {
+      font-size: 20px;
+      font-weight: 600;
+    }
+    .coords {
+      font-family: monospace;
+      font-size: 12px;
+      text-align: center;
+      margin-top: 16px;
+      opacity: 0.8;
+    }
+    .indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+      animation: pulse 2s infinite;
+    }
+    .indicator-active { background: #34c759; }
+    .indicator-inactive { background: #ff9500; animation: none; }
+    .indicator-error { background: #ff3b30; animation: none; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .error-msg {
+      background: #ffebee;
+      color: #c62828;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .back-link {
+      display: block;
+      text-align: center;
+      color: #667eea;
+      text-decoration: none;
+      margin-top: 20px;
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card" id="setupCard">
+      <h1>📱 Connect Phone</h1>
+      <p class="subtitle">Share your location to the live map</p>
+      
+      <div class="error-msg" id="errorMsg"></div>
+      
+      <label>Your Name</label>
+      <input type="text" id="nameInput" placeholder="Enter your name">
+      
+      <button class="btn btn-start" id="startBtn">Start Sharing Location</button>
+    </div>
+    
+    <div class="card status-card hidden" id="trackingCard">
+      <h2>TRACKING ACTIVE</h2>
+      <div class="status-value">
+        <span class="indicator indicator-active" id="indicator"></span>
+        <span id="statusText">Connected</span>
+      </div>
+      
+      <div class="status-grid">
+        <div class="stat">
+          <div class="stat-label">Updates Sent</div>
+          <div class="stat-value" id="updateCount">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Speed</div>
+          <div class="stat-value" id="speedValue">0 km/h</div>
+        </div>
+      </div>
+      
+      <div class="coords" id="coords">Waiting for GPS...</div>
+    </div>
+    
+    <button class="btn btn-stop hidden" id="stopBtn">Stop Sharing</button>
+    
+    <a href="/" class="back-link">← Back to Home</a>
+  </div>
+
+  <script>
+    const nameInput = document.getElementById('nameInput');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const setupCard = document.getElementById('setupCard');
+    const trackingCard = document.getElementById('trackingCard');
+    const errorMsg = document.getElementById('errorMsg');
+    const updateCount = document.getElementById('updateCount');
+    const speedValue = document.getElementById('speedValue');
+    const coords = document.getElementById('coords');
+    const indicator = document.getElementById('indicator');
+    const statusText = document.getElementById('statusText');
+    
+    let watchId = null;
+    let sendCount = 0;
+    let deviceId = localStorage.getItem('phonetracker_deviceId');
+    
+    if (!deviceId) {
+      deviceId = 'phone_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('phonetracker_deviceId', deviceId);
+    }
+    
+    const savedName = localStorage.getItem('phonetracker_name');
+    if (savedName) nameInput.value = savedName;
+    
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = 'block';
+    }
+    
+    function hideError() {
+      errorMsg.style.display = 'none';
+    }
+    
+    async function sendPosition(position) {
+      const data = {
+        deviceId,
+        name: nameInput.value || 'Anonymous',
+        lat: position.coords.latitude,
+        lon: position.coords.longitude,
+        speed: position.coords.speed || 0,
+        heading: position.coords.heading || 0,
+        accuracy: position.coords.accuracy || 0
+      };
+      
+      try {
+        const res = await fetch('/api/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        
+        if (res.ok) {
+          sendCount++;
+          updateCount.textContent = sendCount;
+          
+          const speed = data.speed ? (data.speed * 3.6).toFixed(1) : '0';
+          speedValue.textContent = speed + ' km/h';
+          coords.textContent = `${data.lat.toFixed(6)}, ${data.lon.toFixed(6)} (±${Math.round(data.accuracy)}m)`;
+          
+          indicator.className = 'indicator indicator-active';
+          statusText.textContent = 'Connected';
+          hideError();
+        }
+      } catch (err) {
+        indicator.className = 'indicator indicator-error';
+        statusText.textContent = 'Connection Error';
+      }
+    }
+    
+    function onPositionError(error) {
+      indicator.className = 'indicator indicator-error';
+      
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          showError('Location permission denied. Please enable location access in your browser settings.');
+          statusText.textContent = 'Permission Denied';
+          stopTracking();
+          break;
+        case error.POSITION_UNAVAILABLE:
+          statusText.textContent = 'GPS Unavailable';
+          break;
+        case error.TIMEOUT:
+          statusText.textContent = 'GPS Timeout';
+          break;
+      }
+    }
+    
+    function startTracking() {
+      hideError();
+      
+      if (!navigator.geolocation) {
+        showError('Geolocation is not supported by this browser.');
+        return;
+      }
+      
+      localStorage.setItem('phonetracker_name', nameInput.value);
+      
+      setupCard.classList.add('hidden');
+      trackingCard.classList.remove('hidden');
+      stopBtn.classList.remove('hidden');
+      
+      watchId = navigator.geolocation.watchPosition(
+        sendPosition,
+        onPositionError,
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    }
+    
+    async function stopTracking() {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      
+      try {
+        await fetch('/api/phone/' + deviceId, { method: 'DELETE' });
+      } catch (e) {}
+      
+      setupCard.classList.remove('hidden');
+      trackingCard.classList.add('hidden');
+      stopBtn.classList.add('hidden');
+      sendCount = 0;
+    }
+    
+    startBtn.addEventListener('click', startTracking);
+    stopBtn.addEventListener('click', stopTracking);
+    
+    window.addEventListener('beforeunload', (e) => {
+      if (watchId !== null) {
+        e.preventDefault();
+        e.returnValue = 'Location sharing is active. Are you sure you want to leave?';
+      }
+    });
+  </script>
+</body>
+</html>

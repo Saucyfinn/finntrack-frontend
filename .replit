@@ -16,15 +16,15 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "FinnTrack Frontend"
+args = "Phone Tracker"
 
 [[workflows.workflow]]
-name = "FinnTrack Frontend"
+name = "Phone Tracker"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node server.js"
+args = "node phone-tracker/server.js"
 waitForPort = 5000
 
 [workflows.workflow.metadata]

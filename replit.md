@@ -1,60 +1,47 @@
-# FinnTrack Frontend
+# Phone Tracker App
 
 ## Overview
-FinnTrack is a live fleet tracking application for sailing races. This frontend connects to the FinnTrack API at `https://api.finntracker.org`.
+A standalone phone tracking application that allows phones to share their GPS location in real-time and display them on a live map. This app works completely independently without external API dependencies.
 
 ## Project Structure
 ```
-public/
-  index.html           # Home page (/)
-  live/index.html      # Live tracking (/live)
-  replay/index.html    # Replay viewer (/replay)
-  select/index.html    # Boat/race selection (/select)
-  spectator/index.html # Spectator view (/spectator)
-  join.html            # Device join page
-  analytics.html       # Analytics page
-  assets/              # Images and icons
-  css/                 # Stylesheets
-  js/
-    config.js          # API configuration (FINNTRACK_API_BASE)
-    api.js             # FinnAPI object with getRaces(), getLiveBoats()
-    map.js             # Leaflet map helper (FinnMap)
-    live.js            # Live page logic
-    replay.js          # Replay page logic
-    analytics.js       # Analytics logic
-  data/                # Static data files (fleet.json, races.json)
-server.js              # Node.js static file server
+phone-tracker/
+  server.js              # Express + WebSocket server
+  public/
+    index.html           # Home page with navigation
+    connect.html         # Phone connection page (GPS sharing)
+    map.html             # Live map view showing all connected phones
+
+public/                  # Legacy FinnTrack frontend (archived)
 ```
+
+## How It Works
+1. **Connect Phone**: Open `/connect.html` on your phone, enter your name, tap "Start Sharing Location"
+2. **View Map**: Open `/map.html` on any device to see all connected phones in real-time
+3. **Real-time Updates**: Phones send GPS updates continuously, map updates via WebSocket
 
 ## API Endpoints
-The frontend uses these API endpoints at `https://api.finntracker.org`:
-- `GET /races` - List available races
-- `GET /boats?raceId=<ID>&within=<SECONDS>` - Get live boat positions
-- `POST /update?key=<KEY>` - Send boat position update (used by join page)
-- `GET /ws/live?raceId=<ID>` - WebSocket live feed (optional)
-
-## FinnAPI Object
-All pages include `/js/config.js` and `/js/api.js` which provide:
-```javascript
-FinnAPI.apiBase           // "https://api.finntracker.org"
-FinnAPI.getRaces()        // Returns array of {id, name}
-FinnAPI.getLiveBoats(raceId, withinSeconds) // Returns array of boats
-FinnAPI.listRaces()       // Alias for getRaces()
-FinnAPI.listBoats(raceId, within) // Alias for getLiveBoats()
-```
-
-## URL Routes
-- `/` - Home page
-- `/live` - Live tracking view
-- `/replay` - Replay stored tracks
-- `/select` - Select boat and race
-- `/spectator` - Spectator view with share codes
+- `POST /api/update` - Send phone location update (used by connect page)
+  - Body: `{ deviceId, name, lat, lon, speed, heading, accuracy }`
+- `GET /api/phones` - Get all currently connected phones
+- `DELETE /api/phone/:deviceId` - Disconnect a phone
+- `WebSocket /ws` - Real-time updates for map viewers
 
 ## Running Locally
 ```bash
-node server.js
+node phone-tracker/server.js
 ```
-Server runs on port 5000 and serves static files from `public/`.
+Server runs on port 5000.
 
-## Deployment
-Deployed to Cloudflare Workers Assets at `https://finntracker.org`.
+## URL Routes
+- `/` - Home page with navigation
+- `/connect.html` - Connect your phone
+- `/map.html` - View live map
+
+## Features
+- Real-time GPS tracking from phone browsers
+- WebSocket for instant map updates
+- Auto-cleanup of inactive phones (60 second timeout)
+- Mobile-friendly responsive design
+- Speed and heading display
+- Accuracy indicators
