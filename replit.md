@@ -12,6 +12,11 @@ phone-tracker/
     connect.html         # Phone connection page (GPS sharing)
     map.html             # Live map view showing all connected phones
 
+cloudflare-worker/
+  index.ts               # Cloudflare Worker API with phone tracking
+  raceState.ts           # Durable Object for real-time state (boats + phones)
+  wrangler.toml          # Cloudflare deployment config
+
 public/                  # Legacy FinnTrack frontend (archived)
 ```
 
@@ -45,3 +50,22 @@ Server runs on port 5000.
 - Mobile-friendly responsive design
 - Speed and heading display
 - Accuracy indicators
+
+## Cloudflare Worker Integration
+
+The phone tracking is also integrated into the FinnTrack Cloudflare Worker at `api.finntracker.org`.
+
+### Phone Tracking Endpoints (Cloudflare)
+- `POST /api/phone/update` - Send phone location update
+  - Body: `{ deviceId, name, lat, lon, speed, heading, accuracy }`
+- `GET /api/phones` - Get all currently connected phones
+- `DELETE /api/phone/:deviceId` - Disconnect a phone
+- `WebSocket /ws/phones` - Real-time phone updates only
+
+### Deploying to Cloudflare
+```bash
+cd cloudflare-worker
+npx wrangler deploy
+```
+
+The worker uses a Durable Object (`RaceStateDO`) to manage real-time state for both boats and phones with WebSocket broadcasting.
