@@ -137,17 +137,47 @@
       color: #1e3a5f;
       text-decoration: none;
     }
+    .device-type-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .device-type-btn {
+      padding: 14px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      background: white;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .device-type-btn:hover {
+      border-color: #1e3a5f;
+    }
+    .device-type-btn.selected {
+      border-color: #1e3a5f;
+      background: #1e3a5f;
+      color: white;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
       <h1>⛵ Join Race</h1>
-      <p>Track your boat with GPS</p>
+      <p>Track your position with GPS</p>
     </div>
     
     <div class="card">
       <div class="error-msg" id="errorMsg"></div>
+      
+      <label>Device Type</label>
+      <div class="device-type-grid" id="deviceTypeGrid">
+        <button type="button" class="device-type-btn selected" data-type="phone">📱 Phone</button>
+        <button type="button" class="device-type-btn" data-type="smartwatch">⌚ Smartwatch</button>
+      </div>
       
       <label>Select Series</label>
       <select id="seriesSelect">
@@ -214,6 +244,7 @@
     const trackingStatus = document.getElementById('trackingStatus');
     const updateCount = document.getElementById('updateCount');
     const coords = document.getElementById('coords');
+    const deviceTypeGrid = document.getElementById('deviceTypeGrid');
     
     let allRaces = [];
     let allSeries = [];
@@ -221,7 +252,16 @@
     let sendCount = 0;
     let lastPosition = null;
     let sendInterval = null;
+    let selectedDeviceType = 'phone';
     const SEND_INTERVAL_MS = 2000;
+    
+    deviceTypeGrid.addEventListener('click', (e) => {
+      const btn = e.target.closest('.device-type-btn');
+      if (!btn) return;
+      document.querySelectorAll('.device-type-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedDeviceType = btn.dataset.type;
+    });
     
     async function loadRaces() {
       try {
@@ -322,7 +362,8 @@
           lon: lastPosition.coords.longitude,
           sog: lastPosition.coords.speed != null ? lastPosition.coords.speed * 1.94384 : 0,
           cog: lastPosition.coords.heading || 0,
-          ts: Date.now()
+          ts: Date.now(),
+          deviceType: selectedDeviceType
         };
         
         return fetch('/update', {
@@ -401,6 +442,7 @@
       boatIdInput.disabled = true;
       boatNameInput.disabled = true;
       entrySelect.disabled = true;
+      document.querySelectorAll('.device-type-btn').forEach(b => b.disabled = true);
     }
     
     function stopTracking() {
@@ -423,6 +465,7 @@
       boatIdInput.disabled = false;
       boatNameInput.disabled = false;
       entrySelect.disabled = false;
+      document.querySelectorAll('.device-type-btn').forEach(b => b.disabled = false);
     }
     
     startBtn.addEventListener('click', startTracking);

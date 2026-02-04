@@ -11,21 +11,29 @@ const PORT = 5000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const connectedPhones = new Map();
-const connectedBoats = new Map();
+const connectedDevices = new Map();
 const viewers = new Set();
 
-let boatHistory = new Map();
-let phoneHistory = new Map();
+let deviceHistory = new Map();
 const HISTORY_FILE = path.join(__dirname, 'data', 'history.json');
 
 function loadHistory() {
   try {
     if (fs.existsSync(HISTORY_FILE)) {
       const data = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
-      boatHistory = new Map(Object.entries(data.boats || {}));
-      phoneHistory = new Map(Object.entries(data.phones || {}));
-      console.log(`Loaded history: ${boatHistory.size} boats, ${phoneHistory.size} phones`);
+      if (data.devices) {
+        deviceHistory = new Map(Object.entries(data.devices));
+      } else {
+        const boats = data.boats || {};
+        const phones = data.phones || {};
+        for (const [id, history] of Object.entries(boats)) {
+          deviceHistory.set(id, history.map(p => ({ ...p, deviceType: 'boat' })));
+        }
+        for (const [id, history] of Object.entries(phones)) {
+          deviceHistory.set(id, history.map(p => ({ ...p, deviceType: 'phone' })));
+        }
+      }
+      console.log(`Loaded history: ${deviceHistory.size} devices`);
     }
   } catch (e) {
     console.log('No existing history file or error loading:', e.message);
@@ -39,8 +47,7 @@ function saveHistory() {
       fs.mkdirSync(dir, { recursive: true });
     }
     const data = {
-      boats: Object.fromEntries(boatHistory),
-      phones: Object.fromEntries(phoneHistory),
+      devices: Object.fromEntries(deviceHistory),
       savedAt: Date.now()
     };
     fs.writeFileSync(HISTORY_FILE, JSON.stringify(data));
@@ -227,18 +234,11 @@ const fleet = {
   ]
 };
 
-function addBoatHistoryPoint(boatId, point) {
-  if (!boatHistory.has(boatId)) {
-    boatHistory.set(boatId, []);
+function addDeviceHistoryPoint(deviceId, point) {
+  if (!deviceHistory.has(deviceId)) {
+    deviceHistory.set(deviceId, []);
   }
-  boatHistory.get(boatId).push(point);
-}
-
-function addPhoneHistoryPoint(deviceId, point) {
-  if (!phoneHistory.has(deviceId)) {
-    phoneHistory.set(deviceId, []);
-  }
-  phoneHistory.get(deviceId).push(point);
+  deviceHistory.get(deviceId).push(point);
 }
 
 app.get('/race/list', (req, res) => {
@@ -258,14 +258,14 @@ app.get('/data/fleet.json', (req, res) => {
 });
 
 app.post('/api/update', (req, res) => {
-  const { deviceId, name, lat, lon, speed, heading, accuracy } = req.body;
+  const { deviceId, name, lat, lon, speed, heading, accuracy, raceId, deviceType } = req.body;
   
   if (!deviceId || lat === undefined || lon === undefined) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   
   const timestamp = Date.now();
-  const phoneData = {
+  const deviceData = {
     deviceId,
     name: name || deviceId,
     lat,
@@ -273,32 +273,53 @@ app.post('/api/update', (req, res) => {
     speed: speed || 0,
     heading: heading || 0,
     accuracy: accuracy || 0,
+    raceId: raceId || null,
+    deviceType: deviceType || 'phone',
     lastUpdate: timestamp
   };
   
-  connectedPhones.set(deviceId, phoneData);
+  connectedDevices.set(deviceId, deviceData);
   
-  addPhoneHistoryPoint(deviceId, {
-    lat, lon, speed: speed || 0, heading: heading || 0, ts: timestamp, name: phoneData.name
+  addDeviceHistoryPoint(deviceId, {
+    lat, lon, speed: speed || 0, heading: heading || 0, ts: timestamp, 
+    name: deviceData.name, raceId: deviceData.raceId, deviceType: deviceData.deviceType
   });
   
   broadcastToViewers({
-    type: 'phone_update',
-    phone: phoneData
+    type: 'device_update',
+    device: deviceData
   });
   
-  res.json({ ok: true, count: connectedPhones.size });
+  res.json({ ok: true, count: connectedDevices.size });
+});
+
+app.get('/api/devices', (req, res) => {
+  const now = Date.now();
+  const deviceType = req.query.type;
+  const raceId = req.query.raceId;
+  const within = parseInt(req.query.within) * 1000 || 300000;
+  const activeDevices = [];
+  
+  for (const [id, device] of connectedDevices) {
+    if (now - device.lastUpdate < within) {
+      if (deviceType && device.deviceType !== deviceType) continue;
+      if (raceId && device.raceId !== raceId) continue;
+      activeDevices.push(device);
+    } else {
+      connectedDevices.delete(id);
+    }
+  }
+  
+  res.json({ devices: activeDevices });
 });
 
 app.get('/api/phones', (req, res) => {
   const now = Date.now();
   const activePhones = [];
   
-  for (const [id, phone] of connectedPhones) {
-    if (now - phone.lastUpdate < 60000) {
-      activePhones.push(phone);
-    } else {
-      connectedPhones.delete(id);
+  for (const [id, device] of connectedDevices) {
+    if (now - device.lastUpdate < 60000 && device.deviceType === 'phone') {
+      activePhones.push(device);
     }
   }
   
@@ -307,10 +328,22 @@ app.get('/api/phones', (req, res) => {
 
 app.delete('/api/phone/:deviceId', (req, res) => {
   const { deviceId } = req.params;
-  connectedPhones.delete(deviceId);
+  connectedDevices.delete(deviceId);
   
   broadcastToViewers({
-    type: 'phone_disconnect',
+    type: 'device_disconnect',
+    deviceId
+  });
+  
+  res.json({ ok: true });
+});
+
+app.delete('/api/device/:deviceId', (req, res) => {
+  const { deviceId } = req.params;
+  connectedDevices.delete(deviceId);
+  
+  broadcastToViewers({
+    type: 'device_disconnect',
     deviceId
   });
   
@@ -318,37 +351,43 @@ app.delete('/api/phone/:deviceId', (req, res) => {
 });
 
 app.post('/update', (req, res) => {
-  const { raceId, boatId, name, lat, lon, sog, cog, ts } = req.body;
+  const { raceId, boatId, name, lat, lon, sog, cog, ts, deviceType } = req.body;
   
   if (!boatId || lat === undefined || lon === undefined) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   
   const timestamp = ts || Date.now();
-  const boatData = {
+  const deviceData = {
+    deviceId: boatId,
     boatId,
     raceId: raceId || 'training',
     name: name || boatId,
     lat,
     lon,
+    speed: sog || 0,
     sog: sog || 0,
+    heading: cog || 0,
     cog: cog || 0,
+    deviceType: deviceType || 'phone',
     timestamp,
     lastUpdate: Date.now()
   };
   
-  connectedBoats.set(boatId, boatData);
+  connectedDevices.set(boatId, deviceData);
   
-  addBoatHistoryPoint(boatId, {
-    lat, lon, sog: sog || 0, cog: cog || 0, ts: timestamp, raceId: boatData.raceId, name: boatData.name
+  addDeviceHistoryPoint(boatId, {
+    lat, lon, speed: sog || 0, sog: sog || 0, heading: cog || 0, cog: cog || 0, 
+    ts: timestamp, raceId: deviceData.raceId, name: deviceData.name, deviceType: deviceData.deviceType
   });
   
   broadcastToViewers({
-    type: 'boat_update',
-    boat: boatData
+    type: 'device_update',
+    device: deviceData,
+    boat: deviceData
   });
   
-  res.json({ ok: true, count: connectedBoats.size });
+  res.json({ ok: true, count: connectedDevices.size });
 });
 
 app.get('/boats', (req, res) => {
@@ -357,13 +396,13 @@ app.get('/boats', (req, res) => {
   const within = parseInt(req.query.within) * 1000 || 300000;
   const activeBoats = [];
   
-  for (const [id, boat] of connectedBoats) {
-    if (now - boat.lastUpdate < within) {
-      if (!raceId || boat.raceId === raceId) {
-        activeBoats.push(boat);
+  for (const [id, device] of connectedDevices) {
+    if (now - device.lastUpdate < within) {
+      if (!raceId || device.raceId === raceId) {
+        activeBoats.push(device);
       }
     } else {
-      connectedBoats.delete(id);
+      connectedDevices.delete(id);
     }
   }
   
@@ -372,14 +411,35 @@ app.get('/boats', (req, res) => {
 
 app.delete('/boat/:boatId', (req, res) => {
   const { boatId } = req.params;
-  connectedBoats.delete(boatId);
+  connectedDevices.delete(boatId);
   
   broadcastToViewers({
-    type: 'boat_disconnect',
-    boatId
+    type: 'device_disconnect',
+    deviceId: boatId
   });
   
   res.json({ ok: true });
+});
+
+app.get('/api/history/devices', (req, res) => {
+  const raceId = req.query.raceId;
+  const deviceType = req.query.type;
+  const since = parseInt(req.query.since) || 0;
+  const result = {};
+  
+  for (const [deviceId, history] of deviceHistory) {
+    const filtered = history.filter(p => {
+      if (raceId && p.raceId !== raceId) return false;
+      if (deviceType && p.deviceType !== deviceType) return false;
+      if (since && p.ts < since) return false;
+      return true;
+    });
+    if (filtered.length > 0) {
+      result[deviceId] = filtered;
+    }
+  }
+  
+  res.json(result);
 });
 
 app.get('/api/history/boats', (req, res) => {
@@ -387,14 +447,14 @@ app.get('/api/history/boats', (req, res) => {
   const since = parseInt(req.query.since) || 0;
   const result = {};
   
-  for (const [boatId, history] of boatHistory) {
+  for (const [deviceId, history] of deviceHistory) {
     const filtered = history.filter(p => {
       if (raceId && p.raceId !== raceId) return false;
       if (since && p.ts < since) return false;
       return true;
     });
     if (filtered.length > 0) {
-      result[boatId] = filtered;
+      result[deviceId] = filtered;
     }
   }
   
@@ -405,8 +465,8 @@ app.get('/api/history/phones', (req, res) => {
   const since = parseInt(req.query.since) || 0;
   const result = {};
   
-  for (const [deviceId, history] of phoneHistory) {
-    const filtered = history.filter(p => !since || p.ts >= since);
+  for (const [deviceId, history] of deviceHistory) {
+    const filtered = history.filter(p => (!since || p.ts >= since) && p.deviceType === 'phone');
     if (filtered.length > 0) {
       result[deviceId] = filtered;
     }
@@ -415,11 +475,52 @@ app.get('/api/history/phones', (req, res) => {
   res.json({ history: result });
 });
 
+app.get('/api/analytics/devices', (req, res) => {
+  const raceId = req.query.raceId;
+  const deviceType = req.query.type;
+  const analytics = [];
+  
+  for (const [deviceId, history] of deviceHistory) {
+    let filtered = history;
+    if (raceId) filtered = filtered.filter(p => p.raceId === raceId);
+    if (deviceType) filtered = filtered.filter(p => p.deviceType === deviceType);
+    if (filtered.length < 2) continue;
+    
+    const speeds = filtered.map(p => p.speed || p.sog || 0).filter(s => s > 0);
+    const avgSpeed = speeds.length > 0 ? speeds.reduce((a,b) => a+b, 0) / speeds.length : 0;
+    const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 0;
+    
+    let totalDistance = 0;
+    for (let i = 1; i < filtered.length; i++) {
+      totalDistance += haversine(
+        filtered[i-1].lat, filtered[i-1].lon,
+        filtered[i].lat, filtered[i].lon
+      );
+    }
+    
+    const duration = (filtered[filtered.length-1].ts - filtered[0].ts) / 1000;
+    
+    analytics.push({
+      deviceId,
+      name: filtered[filtered.length-1].name || deviceId,
+      deviceType: filtered[filtered.length-1].deviceType || 'phone',
+      avgSpeed: avgSpeed.toFixed(2),
+      maxSpeed: maxSpeed.toFixed(2),
+      totalDistance: totalDistance.toFixed(2),
+      duration: Math.round(duration),
+      points: filtered.length,
+      speedHistory: filtered.map(p => ({ ts: p.ts, speed: p.speed || p.sog || 0 }))
+    });
+  }
+  
+  res.json({ analytics });
+});
+
 app.get('/api/analytics/boats', (req, res) => {
   const raceId = req.query.raceId;
   const analytics = [];
   
-  for (const [boatId, history] of boatHistory) {
+  for (const [deviceId, history] of deviceHistory) {
     const filtered = raceId ? history.filter(p => p.raceId === raceId) : history;
     if (filtered.length < 2) continue;
     
@@ -438,14 +539,15 @@ app.get('/api/analytics/boats', (req, res) => {
     const duration = (filtered[filtered.length-1].ts - filtered[0].ts) / 1000;
     
     analytics.push({
-      boatId,
-      name: filtered[0].name || boatId,
+      boatId: deviceId,
+      deviceId,
+      name: filtered[0].name || deviceId,
       points: filtered.length,
       avgSpeed: Math.round(avgSpeed * 10) / 10,
       maxSpeed: Math.round(maxSpeed * 10) / 10,
       distance: Math.round(totalDistance * 100) / 100,
       duration: Math.round(duration),
-      speedHistory: filtered.map(p => ({ ts: p.ts, sog: p.sog }))
+      speedHistory: filtered.map(p => ({ ts: p.ts, sog: p.sog || p.speed || 0 }))
     });
   }
   
@@ -455,32 +557,33 @@ app.get('/api/analytics/boats', (req, res) => {
 app.get('/api/analytics/phones', (req, res) => {
   const analytics = [];
   
-  for (const [deviceId, history] of phoneHistory) {
-    if (history.length < 2) continue;
+  for (const [deviceId, history] of deviceHistory) {
+    const filtered = history.filter(p => p.deviceType === 'phone');
+    if (filtered.length < 2) continue;
     
-    const speeds = history.map(p => p.speed).filter(s => s > 0);
+    const speeds = filtered.map(p => p.speed).filter(s => s > 0);
     const avgSpeed = speeds.length > 0 ? speeds.reduce((a,b) => a+b, 0) / speeds.length : 0;
     const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 0;
     
     let totalDistance = 0;
-    for (let i = 1; i < history.length; i++) {
+    for (let i = 1; i < filtered.length; i++) {
       totalDistance += haversine(
-        history[i-1].lat, history[i-1].lon,
-        history[i].lat, history[i].lon
+        filtered[i-1].lat, filtered[i-1].lon,
+        filtered[i].lat, filtered[i].lon
       );
     }
     
-    const duration = (history[history.length-1].ts - history[0].ts) / 1000;
+    const duration = (filtered[filtered.length-1].ts - filtered[0].ts) / 1000;
     
     analytics.push({
       deviceId,
-      name: history[0].name || deviceId,
-      points: history.length,
+      name: filtered[0].name || deviceId,
+      points: filtered.length,
       avgSpeed: Math.round(avgSpeed * 100) / 100,
       maxSpeed: Math.round(maxSpeed * 100) / 100,
       distance: Math.round(totalDistance * 100) / 100,
       duration: Math.round(duration),
-      speedHistory: history.map(p => ({ ts: p.ts, speed: p.speed }))
+      speedHistory: filtered.map(p => ({ ts: p.ts, speed: p.speed }))
     });
   }
   
@@ -505,9 +608,10 @@ wss.on('connection', (ws, req) => {
   console.log('Viewer connected');
   viewers.add(ws);
   
-  const phones = Array.from(connectedPhones.values());
-  const boats = Array.from(connectedBoats.values());
-  ws.send(JSON.stringify({ type: 'init', phones, boats }));
+  const devices = Array.from(connectedDevices.values());
+  const phones = devices.filter(d => d.deviceType === 'phone');
+  const boats = devices;
+  ws.send(JSON.stringify({ type: 'init', phones, boats, devices }));
   
   ws.on('close', () => {
     viewers.delete(ws);
@@ -526,16 +630,11 @@ function broadcastToViewers(message) {
 
 setInterval(() => {
   const now = Date.now();
-  for (const [id, phone] of connectedPhones) {
-    if (now - phone.lastUpdate > 60000) {
-      connectedPhones.delete(id);
-      broadcastToViewers({ type: 'phone_disconnect', deviceId: id });
-    }
-  }
-  for (const [id, boat] of connectedBoats) {
-    if (now - boat.lastUpdate > 300000) {
-      connectedBoats.delete(id);
-      broadcastToViewers({ type: 'boat_disconnect', boatId: id });
+  for (const [id, device] of connectedDevices) {
+    const timeout = device.deviceType === 'phone' ? 60000 : 300000;
+    if (now - device.lastUpdate > timeout) {
+      connectedDevices.delete(id);
+      broadcastToViewers({ type: 'device_disconnect', deviceId: id });
     }
   }
 }, 10000);

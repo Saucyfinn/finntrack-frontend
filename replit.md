@@ -1,78 +1,79 @@
 # FinnTrack - Standalone Sailing Tracker
 
 ## Overview
-A complete sailing race tracking application that supports both boat and phone GPS tracking. This standalone version mimics the core functionality of the Cloudflare-hosted FinnTrack, working independently without external API dependencies.
+A complete sailing race tracking application that supports GPS tracking from phones, smartwatches, and other devices. This standalone version works independently without external API dependencies.
 
 ## Project Structure
 ```
 phone-tracker/
-  server.js              # Express + WebSocket server with boat + phone tracking
+  server.js              # Express + WebSocket server with unified device tracking
+  data/
+    history.json         # Persistent history storage (saved every 30s)
   public/
     index.html           # Home page with navigation
-    connect.html         # Phone GPS connection page
-    join.html            # Boat race join page with fleet selection
-    map.html             # Live map showing boats and phones
+    join.html            # Unified race join page (phone/smartwatch)
+    map.html             # Live map showing all devices
+    replay.html          # Track replay with time controls
+    analytics.html       # Performance statistics
 
-cloudflare-worker/
-  index.ts               # Cloudflare Worker API with phone tracking
-  raceState.ts           # Durable Object for real-time state (boats + phones)
-  wrangler.toml          # Cloudflare deployment config
-
-public/                  # Legacy FinnTrack frontend (archived)
+cloudflare-worker/       # Cloudflare Worker integration (optional)
 ```
 
 ## How It Works
-1. **Phone Tracking**: Open `/connect.html`, enter name, tap "Start Sharing Location"
-2. **Boat Tracking**: Open `/join.html`, select race/fleet, enter sail number, tap "Start Tracking"
-3. **View Map**: Open `/map.html` to see all boats and phones with real-time WebSocket updates
+1. **Join Race**: Open `/join.html`, select device type (Phone/Smartwatch), pick races, enter sail number
+2. **View Map**: Open `/map.html` to see all devices with real-time WebSocket updates
+3. **Replay**: Open `/replay.html` to playback recorded tracks
+4. **Analytics**: Open `/analytics.html` for speed/distance statistics
 
 ## API Endpoints
 
-### Phone Tracking
-- `POST /api/update` - Send phone location update
-  - Body: `{ deviceId, name, lat, lon, speed, heading, accuracy }`
-- `GET /api/phones` - Get all connected phones
-- `DELETE /api/phone/:deviceId` - Disconnect phone
+### Unified Device Tracking
+- `POST /api/update` - Send device location update
+  - Body: `{ deviceId, name, lat, lon, speed, heading, accuracy, raceId, deviceType }`
+- `GET /api/devices` - Get all connected devices (filter: `?type=phone&raceId=...`)
+- `DELETE /api/device/:deviceId` - Disconnect device
 
-### Boat Tracking
-- `POST /update` - Send boat location update
-  - Body: `{ raceId, boatId, name, lat, lon, sog, cog, ts }`
-- `GET /boats` - Get all connected boats (with optional `?raceId=` filter)
-- `DELETE /boat/:boatId` - Disconnect boat
+### Legacy Endpoints (backward compatible)
+- `POST /update` - Boat-style update
+- `GET /boats` - Get connected boats
+- `GET /api/phones` - Get connected phones
 
 ### Race/Fleet Management
 - `GET /race/list` - Get all races and series
-- `GET /races` - Get races only
-- `GET /fleet` - Get fleet entries
+- `GET /fleet` - Get fleet entries (120+ sailors)
+
+### History & Analytics
+- `GET /api/history/devices` - Get device history
+- `GET /api/analytics/devices` - Get analytics data
 
 ### WebSocket
-- `/ws` - Real-time updates for both boats and phones
+- `/ws` - Real-time updates for all devices
 
 ## Features
-- Real-time GPS tracking from phones and boats
+- Unified device tracking (phone, smartwatch - same system)
+- 34 races across 4 series (Australian Nationals, Gold Cup, World Masters, Training)
+- 120+ fleet entries from championship events
 - Race and fleet selection with multi-race support
-- Live map with tabs for All/Boats/Phones
-- WebSocket for instant updates
-- Auto-cleanup: phones 60s timeout, boats 5min timeout
+- Live map with real-time WebSocket updates
+- Auto-cleanup: phones 60s timeout, other devices 5min timeout
 - Mobile-friendly responsive design
-- Speed (knots for boats, km/h for phones) and heading display
+- Speed (knots) and heading display
 
 ## Replay Feature
 - `/replay.html` - Playback recorded tracks with time slider
 - Play/Pause/Reset controls with 1x/2x/5x/10x speed options
-- Shows boat and phone trails on the map
-- Data retained for 1 hour in memory
+- **Data persisted indefinitely** - survives server restarts
+- History saved to `data/history.json` every 30 seconds
 
 ## Analytics Feature
 - `/analytics.html` - View performance statistics
-- Tabs for Boats and Phones
 - Per-device stats: avg speed, max speed, distance, duration
 - Speed charts over time using Chart.js
-- Session summary with totals
 
-## Current Limitations
-- In-memory storage (data not persisted between restarts, 1 hour retention)
-- Static race/fleet data (not loaded from external sources)
+## Data Persistence
+- Position history saved to file every 30 seconds
+- History persists across server restarts
+- No time-based cleanup - replays kept indefinitely
 
 ## Cloudflare Worker Integration
 
