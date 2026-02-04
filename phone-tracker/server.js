@@ -52,23 +52,47 @@ function saveHistory() {
 loadHistory();
 
 const races = [
-  { raceId: 'aus-nats-1', title: 'Australian Nationals 2026 - Race 1', series: 'aus-nationals-2026' },
-  { raceId: 'aus-nats-2', title: 'Australian Nationals 2026 - Race 2', series: 'aus-nationals-2026' },
-  { raceId: 'aus-nats-3', title: 'Australian Nationals 2026 - Race 3', series: 'aus-nationals-2026' },
-  { raceId: 'gold-cup-1', title: 'Finn Gold Cup 2026 - Race 1', series: 'gold-cup-2026' },
-  { raceId: 'gold-cup-2', title: 'Finn Gold Cup 2026 - Race 2', series: 'gold-cup-2026' },
-  { raceId: 'gold-cup-3', title: 'Finn Gold Cup 2026 - Race 3', series: 'gold-cup-2026' },
-  { raceId: 'masters-1', title: 'Finn World Masters 2026 - Race 1', series: 'masters-2026' },
-  { raceId: 'masters-2', title: 'Finn World Masters 2026 - Race 2', series: 'masters-2026' },
-  { raceId: 'masters-3', title: 'Finn World Masters 2026 - Race 3', series: 'masters-2026' },
-  { raceId: 'training', title: 'Training Session', series: 'training' }
+  { raceId: 'AUSNATS-2026-R01', title: 'Australian Nationals 2026 - Race 1', series: 'AUSNATS', raceNo: 1 },
+  { raceId: 'AUSNATS-2026-R02', title: 'Australian Nationals 2026 - Race 2', series: 'AUSNATS', raceNo: 2 },
+  { raceId: 'AUSNATS-2026-R03', title: 'Australian Nationals 2026 - Race 3', series: 'AUSNATS', raceNo: 3 },
+  { raceId: 'AUSNATS-2026-R04', title: 'Australian Nationals 2026 - Race 4', series: 'AUSNATS', raceNo: 4 },
+  { raceId: 'AUSNATS-2026-R05', title: 'Australian Nationals 2026 - Race 5', series: 'AUSNATS', raceNo: 5 },
+  { raceId: 'AUSNATS-2026-R06', title: 'Australian Nationals 2026 - Race 6', series: 'AUSNATS', raceNo: 6 },
+  { raceId: 'GOLDCUP-2026-R01', title: 'Gold Cup 2026 - Race 1', series: 'GOLDCUP', raceNo: 1 },
+  { raceId: 'GOLDCUP-2026-R02', title: 'Gold Cup 2026 - Race 2', series: 'GOLDCUP', raceNo: 2 },
+  { raceId: 'GOLDCUP-2026-R03', title: 'Gold Cup 2026 - Race 3', series: 'GOLDCUP', raceNo: 3 },
+  { raceId: 'GOLDCUP-2026-R04', title: 'Gold Cup 2026 - Race 4', series: 'GOLDCUP', raceNo: 4 },
+  { raceId: 'GOLDCUP-2026-R05', title: 'Gold Cup 2026 - Race 5', series: 'GOLDCUP', raceNo: 5 },
+  { raceId: 'GOLDCUP-2026-R06', title: 'Gold Cup 2026 - Race 6', series: 'GOLDCUP', raceNo: 6 },
+  { raceId: 'GOLDCUP-2026-R07', title: 'Gold Cup 2026 - Race 7', series: 'GOLDCUP', raceNo: 7 },
+  { raceId: 'GOLDCUP-2026-R08', title: 'Gold Cup 2026 - Race 8', series: 'GOLDCUP', raceNo: 8 },
+  { raceId: 'GOLDCUP-2026-R09', title: 'Gold Cup 2026 - Race 9', series: 'GOLDCUP', raceNo: 9 },
+  { raceId: 'GOLDCUP-2026-R10', title: 'Gold Cup 2026 - Race 10', series: 'GOLDCUP', raceNo: 10 },
+  { raceId: 'MASTERS-2026-R01', title: 'Finn World Masters 2026 - Race 1', series: 'MASTERS', raceNo: 1 },
+  { raceId: 'MASTERS-2026-R02', title: 'Finn World Masters 2026 - Race 2', series: 'MASTERS', raceNo: 2 },
+  { raceId: 'MASTERS-2026-R03', title: 'Finn World Masters 2026 - Race 3', series: 'MASTERS', raceNo: 3 },
+  { raceId: 'MASTERS-2026-R04', title: 'Finn World Masters 2026 - Race 4', series: 'MASTERS', raceNo: 4 },
+  { raceId: 'MASTERS-2026-R05', title: 'Finn World Masters 2026 - Race 5', series: 'MASTERS', raceNo: 5 },
+  { raceId: 'MASTERS-2026-R06', title: 'Finn World Masters 2026 - Race 6', series: 'MASTERS', raceNo: 6 },
+  { raceId: 'MASTERS-2026-R07', title: 'Finn World Masters 2026 - Race 7', series: 'MASTERS', raceNo: 7 },
+  { raceId: 'MASTERS-2026-R08', title: 'Finn World Masters 2026 - Race 8', series: 'MASTERS', raceNo: 8 },
+  { raceId: 'TRAINING-2026-R01', title: 'Training/Undefined - Race 1', series: 'TRAINING', raceNo: 1 },
+  { raceId: 'TRAINING-2026-R02', title: 'Training/Undefined - Race 2', series: 'TRAINING', raceNo: 2 },
+  { raceId: 'TRAINING-2026-R03', title: 'Training/Undefined - Race 3', series: 'TRAINING', raceNo: 3 },
+  { raceId: 'TRAINING-2026-R04', title: 'Training/Undefined - Race 4', series: 'TRAINING', raceNo: 4 },
+  { raceId: 'TRAINING-2026-R05', title: 'Training/Undefined - Race 5', series: 'TRAINING', raceNo: 5 },
+  { raceId: 'TRAINING-2026-R06', title: 'Training/Undefined - Race 6', series: 'TRAINING', raceNo: 6 },
+  { raceId: 'TRAINING-2026-R07', title: 'Training/Undefined - Race 7', series: 'TRAINING', raceNo: 7 },
+  { raceId: 'TRAINING-2026-R08', title: 'Training/Undefined - Race 8', series: 'TRAINING', raceNo: 8 },
+  { raceId: 'TRAINING-2026-R09', title: 'Training/Undefined - Race 9', series: 'TRAINING', raceNo: 9 },
+  { raceId: 'TRAINING-2026-R10', title: 'Training/Undefined - Race 10', series: 'TRAINING', raceNo: 10 }
 ];
 
 const series = [
-  { id: 'aus-nationals-2026', name: 'Australian Finn Nationals 2026', raceCount: 3 },
-  { id: 'gold-cup-2026', name: 'Finn Gold Cup 2026', raceCount: 3 },
-  { id: 'masters-2026', name: 'Finn World Masters 2026', raceCount: 3 },
-  { id: 'training', name: 'Training', raceCount: 1 }
+  { id: 'AUSNATS', name: 'Australian Nationals 2026', raceCount: 6 },
+  { id: 'GOLDCUP', name: 'Gold Cup 2026', raceCount: 10 },
+  { id: 'MASTERS', name: 'Finn World Masters 2026', raceCount: 8 },
+  { id: 'TRAINING', name: 'Training/Undefined', raceCount: 10 }
 ];
 
 const fleet = {
