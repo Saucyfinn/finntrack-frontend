@@ -61,8 +61,8 @@
     .sidebar {
       position: fixed;
       top: 55px;
-      right: 10px;
-      width: 300px;
+      left: 10px;
+      width: 220px;
       max-height: calc(100vh - 75px);
       background: white;
       border-radius: 12px;
@@ -72,90 +72,108 @@
       display: flex;
       flex-direction: column;
     }
-    .sidebar-header {
-      padding: 16px;
-      border-bottom: 1px solid #eee;
+    .sidebar.collapsed { display: none; }
+    .sidebar-title {
+      padding: 12px 16px;
       font-weight: 600;
       background: #f8f9fa;
-    }
-    .tabs {
-      display: flex;
       border-bottom: 1px solid #eee;
-    }
-    .tab {
-      flex: 1;
-      padding: 12px;
-      text-align: center;
-      cursor: pointer;
       font-size: 14px;
-      border-bottom: 2px solid transparent;
-      transition: all 0.2s;
-    }
-    .tab.active {
-      border-bottom-color: #1e3a5f;
-      color: #1e3a5f;
-      font-weight: 600;
     }
     .list {
       flex: 1;
       overflow-y: auto;
-      max-height: 350px;
+      max-height: calc(100vh - 180px);
     }
     .item {
-      padding: 12px 16px;
+      padding: 10px 12px;
       border-bottom: 1px solid #f0f0f0;
-      cursor: pointer;
-      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
     .item:hover {
       background: #f8f8f8;
     }
-    .item-name {
-      font-weight: 600;
-      margin-bottom: 4px;
+    .toggle-btn {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #1e3a5f;
+      border-radius: 4px;
+      background: #1e3a5f;
+      cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 8px;
-    }
-    .item-info {
+      justify-content: center;
+      color: white;
       font-size: 12px;
+    }
+    .toggle-btn.hidden {
+      background: white;
+      color: transparent;
+    }
+    .item-content {
+      flex: 1;
+      cursor: pointer;
+    }
+    .item-id {
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .item-speed {
+      font-size: 11px;
       color: #666;
     }
-    .badge {
-      font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-weight: 500;
-    }
-    .badge-boat { background: #fff3e0; color: #e65100; }
-    .badge-phone { background: #ede7f6; color: #5e35b1; }
     .empty-state {
-      padding: 40px 20px;
+      padding: 30px 16px;
       text-align: center;
       color: #999;
-    }
-    .empty-icon {
-      font-size: 48px;
-      margin-bottom: 10px;
+      font-size: 13px;
     }
     .home-link {
       display: block;
-      padding: 16px;
+      padding: 12px;
       text-align: center;
       background: #1e3a5f;
       color: white;
       text-decoration: none;
       font-weight: 600;
+      font-size: 14px;
     }
+    .map-controls {
+      position: fixed;
+      top: 60px;
+      right: 10px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .map-btn {
+      width: 40px;
+      height: 40px;
+      background: white;
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .map-btn:hover { background: #f0f0f0; }
     @media (max-width: 600px) {
       .sidebar {
-        width: calc(100% - 20px);
-        left: 10px;
-        top: auto;
-        bottom: 10px;
-        max-height: 250px;
+        width: 180px;
+        top: 55px;
+        left: 5px;
       }
       .status { display: none; }
+    }
+    #map:fullscreen, #map:-webkit-full-screen {
+      width: 100vw !important;
+      height: 100vh !important;
     }
   </style>
 </head>
@@ -180,19 +198,17 @@
     </div>
   </div>
   
-  <div class="sidebar">
-    <div class="tabs">
-      <div class="tab active" data-tab="all">All</div>
-      <div class="tab" data-tab="boats">Boats</div>
-      <div class="tab" data-tab="phones">Phones</div>
-    </div>
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-title">Boats</div>
     <div class="list" id="itemList">
-      <div class="empty-state">
-        <div class="empty-icon">📡</div>
-        <div>No devices connected</div>
-      </div>
+      <div class="empty-state">No boats connected</div>
     </div>
-    <a href="/" class="home-link">← Back to Home</a>
+    <a href="/" class="home-link">← Home</a>
+  </div>
+  
+  <div class="map-controls">
+    <button class="map-btn" id="toggleSidebar" title="Toggle list">☰</button>
+    <button class="map-btn" id="fullscreenBtn" title="Fullscreen">⛶</button>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -218,17 +234,22 @@
     const boatCount = document.getElementById('boatCount');
     const phoneCount = document.getElementById('phoneCount');
     const wsDot = document.getElementById('wsDot');
+    const sidebar = document.getElementById('sidebar');
+    const hiddenDevices = new Set();
     
-    let activeTab = 'all';
     let shouldFollowDevice = !!followDevice;
     
-    document.querySelectorAll('.tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        activeTab = tab.dataset.tab;
-        updateList();
-      });
+    document.getElementById('toggleSidebar').addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+    });
+    
+    document.getElementById('fullscreenBtn').addEventListener('click', () => {
+      const mapEl = document.getElementById('map');
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        mapEl.requestFullscreen().catch(e => console.log(e));
+      }
     });
     
     const nationalColors = {
@@ -352,43 +373,48 @@
     function updateList() {
       let items = [];
       
-      if (activeTab === 'all' || activeTab === 'boats') {
-        boats.forEach((b, id) => {
-          items.push({ type: 'boat', id, name: b.name || b.boatId, info: `${(b.sog || 0).toFixed(1)} kn`, lat: b.lat, lon: b.lon });
-        });
-      }
-      
-      if (activeTab === 'all' || activeTab === 'phones') {
-        phones.forEach((p, id) => {
-          items.push({ type: 'phone', id, name: p.name, info: `${((p.speed || 0) * 3.6).toFixed(1)} km/h`, lat: p.lat, lon: p.lon });
-        });
-      }
+      boats.forEach((b, id) => {
+        items.push({ id, boatId: b.boatId, speed: (b.sog || 0).toFixed(1), lat: b.lat, lon: b.lon });
+      });
+      phones.forEach((p, id) => {
+        items.push({ id, boatId: p.name || id, speed: ((p.speed || 0) * 1.94384).toFixed(1), lat: p.lat, lon: p.lon });
+      });
       
       if (items.length === 0) {
-        itemList.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-icon">📡</div>
-            <div>No ${activeTab === 'all' ? 'devices' : activeTab} connected</div>
-          </div>
-        `;
+        itemList.innerHTML = '<div class="empty-state">No boats connected</div>';
         return;
       }
       
-      itemList.innerHTML = items.map(item => `
-        <div class="item" onclick="focusItem('${item.type}', '${item.id}')">
-          <div class="item-name">
-            ${item.type === 'boat' ? '⛵' : '📱'} ${item.name}
-            <span class="badge badge-${item.type}">${item.type}</span>
+      itemList.innerHTML = items.map(item => {
+        const isHidden = hiddenDevices.has(item.id);
+        return `
+          <div class="item">
+            <button class="toggle-btn ${isHidden ? 'hidden' : ''}" onclick="toggleDevice('${item.id}')">✓</button>
+            <div class="item-content" onclick="focusItem('${item.id}')">
+              <div class="item-id">${item.boatId}</div>
+              <div class="item-speed">${item.speed} kn</div>
+            </div>
           </div>
-          <div class="item-info">${item.info} | ${item.lat.toFixed(4)}, ${item.lon.toFixed(4)}</div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
     
-    window.focusItem = function(type, id) {
-      const markers = type === 'boat' ? boatMarkers : phoneMarkers;
-      if (markers.has(id)) {
-        const marker = markers.get(id);
+    window.toggleDevice = function(id) {
+      if (hiddenDevices.has(id)) {
+        hiddenDevices.delete(id);
+        if (boatMarkers.has(id)) boatMarkers.get(id).addTo(map);
+        if (phoneMarkers.has(id)) phoneMarkers.get(id).addTo(map);
+      } else {
+        hiddenDevices.add(id);
+        if (boatMarkers.has(id)) map.removeLayer(boatMarkers.get(id));
+        if (phoneMarkers.has(id)) map.removeLayer(phoneMarkers.get(id));
+      }
+      updateList();
+    };
+    
+    window.focusItem = function(id) {
+      const marker = boatMarkers.get(id) || phoneMarkers.get(id);
+      if (marker) {
         map.setView(marker.getLatLng(), 16);
         marker.openPopup();
       }
