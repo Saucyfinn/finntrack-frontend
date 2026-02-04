@@ -55,7 +55,6 @@
       border-radius: 50%;
     }
     .dot-boat { background: #ff9500; }
-    .dot-phone { background: #667eea; }
     .dot-ws { background: #34c759; }
     .dot-ws.disconnected { background: #ff3b30; }
     .sidebar {
@@ -181,15 +180,11 @@
   <div id="map"></div>
   
   <div class="header">
-    <div class="brand">⛵ FinnTrack</div>
+    <div class="brand">FinnTrack</div>
     <div class="status">
       <div class="status-item">
         <div class="dot dot-boat"></div>
         <span><span id="boatCount">0</span> boats</span>
-      </div>
-      <div class="status-item">
-        <div class="dot dot-phone"></div>
-        <span><span id="phoneCount">0</span> phones</span>
       </div>
       <div class="status-item">
         <div class="dot dot-ws" id="wsDot"></div>
@@ -232,7 +227,6 @@
     
     const itemList = document.getElementById('itemList');
     const boatCount = document.getElementById('boatCount');
-    const phoneCount = document.getElementById('phoneCount');
     const wsDot = document.getElementById('wsDot');
     const sidebar = document.getElementById('sidebar');
     const hiddenDevices = new Set();
@@ -366,8 +360,7 @@
     }
     
     function updateCounts() {
-      boatCount.textContent = boats.size;
-      phoneCount.textContent = phones.size;
+      boatCount.textContent = boats.size + phones.size;
     }
     
     function updateList() {
