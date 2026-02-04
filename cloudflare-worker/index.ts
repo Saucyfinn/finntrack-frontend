@@ -115,7 +115,11 @@ export default {
           "POST /update",
           "POST /owntracks",
           "GET/POST /traccar",
-          "POST /ingest"
+          "POST /ingest",
+          "POST /api/phone/update",
+          "GET /api/phones",
+          "DELETE /api/phone/:deviceId",
+          "WebSocket /ws/phones"
         ],
       }, 200, {}, corsOrigin);
     }
@@ -446,9 +450,45 @@ export default {
       }, 200, {}, corsOrigin);
     }
 
+    // ---- Phone Tracking WebSocket ----
+    if (path === "/ws/phones") {
+      const id = env.RACE_STATE.idFromName("phones");
+      const stub = env.RACE_STATE.get(id);
+      return stub.fetch(request);
+    }
+
+    // ---- Phone Update endpoint (no auth for simplicity) ----
+    if (request.method === "POST" && path === "/api/phone/update") {
+      const body = await request.json().catch(() => null);
+      if (!body) return jsonResponse({ ok: false, error: "Invalid JSON body" }, 400, {}, corsOrigin);
+
+      const id = env.RACE_STATE.idFromName("phones");
+      const stub = env.RACE_STATE.get(id);
+      return stub.fetch(new Request("https://internal/api/phone/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      }));
+    }
+
+    // ---- Get all phones ----
+    if (request.method === "GET" && path === "/api/phones") {
+      const id = env.RACE_STATE.idFromName("phones");
+      const stub = env.RACE_STATE.get(id);
+      return stub.fetch(new Request("https://internal/api/phones"));
+    }
+
+    // ---- Disconnect phone ----
+    if (request.method === "DELETE" && path.startsWith("/api/phone/")) {
+      const deviceId = path.split("/").pop();
+      const id = env.RACE_STATE.idFromName("phones");
+      const stub = env.RACE_STATE.get(id);
+      return stub.fetch(new Request(`https://internal/api/phone/${deviceId}`, { method: "DELETE" }));
+    }
+
     // ---- Fallback ----
     return jsonResponse({ error: "Not found", path }, 404, {}, corsOrigin);
   },
 };
 
-export { RaceState } from "./raceState";
+export { RaceStateDO } from "./raceState";
